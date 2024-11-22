@@ -1,12 +1,11 @@
 const express = require('express');
-const { loginAdmin, createAdmin } = require('../admin/controllers/adminAuthController');
+const { loginAdmin, createAdmin, forgotPassword, resetPassword} = require('../admin/controllers/adminAuthController');
 
 const router = express.Router();
 
-// Admin login route
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.post('/login', loginAdmin);
-
-// Admin creation route (setup)
 router.post('/create-admin', createAdmin);
 
 module.exports = router;

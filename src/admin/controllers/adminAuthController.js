@@ -21,5 +21,24 @@ const createAdmin = async (req, res) => {
         sendErrorResponse(res, error.message);
     }
 };
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const resetUrl = await adminAuthService.sendPasswordResetEmail(email);
+        sendSuccessResponse(res, { message: 'Password reset email sent', resetUrl });
+    } catch (error) {
+        sendErrorResponse(res, error.message);
+    }
+};
 
-module.exports = { loginAdmin, createAdmin };
+const resetPassword = async (req, res) => {
+    try {
+        const { token, newPassword } = req.body;
+        const message = await adminAuthService.resetPassword(token, newPassword);
+        sendSuccessResponse(res, { message });
+    } catch (error) {
+        sendErrorResponse(res, error.message);
+    }
+};
+
+module.exports = { loginAdmin, createAdmin,forgotPassword,resetPassword };

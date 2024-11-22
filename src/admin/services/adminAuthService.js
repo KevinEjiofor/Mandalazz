@@ -2,65 +2,98 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { findAdminByEmail, createAdmin } = require('../data/repositories/adminRepository');
 const { JWT_SECRET } = require('../../config/config');
-const { sendEmail, ADMIN_EMAIL } = require('../../utils/emailService');
+const { sendEmail } = require('../../utils/emailService');
+const crypto = require('crypto');
 
-/**
- * Authenticate an admin using email and password.
- * @param {string} email - The admin's email.
- * @param {string} password - The admin's password.
- * @returns {string} - JWT token for the authenticated admin.
- * @throws {Error} - If authentication fails.
- */
 const authenticateAdmin = async (email, password) => {
-    // Find admin by email
+
     const admin = await findAdminByEmail(email);
     if (!admin) {
         throw new Error('Invalid email or password');
     }
 
-    // Verify password
+
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
         throw new Error('Invalid email or password');
     }
 
-    // Generate JWT token
     const token = jwt.sign(
         { id: admin._id, isAdmin: admin.isAdmin },
         JWT_SECRET,
         { expiresIn: '1h' }
     );
-
-    // Notify admin of login
-    const subject = 'Admin Login Notification';
-    const text = `The admin with email ${email} has logged in.`;
-    const html = `<p>The admin with email <strong>${email}</strong> has logged in.</p>`;
-    await sendEmail(ADMIN_EMAIL, subject, text, html);
+    const subject = 'Login Alert';
+    const text = `Hi EveryThing ManDelazz's Admin,\n\nYou just logged in to the platform.\n\nIf this wasn't you, please contact support immediately.\n\nThank you!`;
+    await sendEmail(email, subject, text);
 
     return token;
 };
 
-/**
- * Create a new admin account.
- * @param {string} email - The admin's email.
- * @param {string} password - The admin's password.
- * @returns {Object} - The newly created admin account.
- * @throws {Error} - If account creation fails.
- */
-const createAdminAccount = async (email, password) => {
-    // Hash the password before storing it
-    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Save the new admin in the database
+const createAdminAccount = async (email, password) => {
+
+    const hashedPassword = await bcrypt.hash(password, 10);
     const newAdmin = await createAdmin(email, hashedPassword);
-    //
-    // // Notify admin of new signup
-    // const subject = 'New Admin Sign Up Notification';
-    // const text = `A new admin has been registered with the email: ${email}.`;
-    // const html = `<p>A new admin has been registered with the email: <strong>${email}</strong>.</p>`;
-    // await sendEmail(ADMIN_EMAIL, subject, text, html);
+
+    const subject = 'Welcome to the Platform';
+    const text = `Hi ${email},\n\nYour admin account has been successfully created.\n\nThank you!`;
+    await sendEmail(email, subject, text);
 
     return newAdmin;
 };
 
-module.exports = { authenticateAdmin, createAdminAccount };
+
+const sendPasswordResetEmail = async (email) => {
+    const admin = await findAdminByEmail(email);
+    if (!admin) {
+        throw new Error('No account found with this email');
+    }
+
+    // Generate a reset token (random string)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Store the hashed token in the database (for security)
+    admin.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    admin.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // Token valid for 15 minutes
+    await admin.save();
+
+    // Send email with the reset token
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    const subject = 'Password Reset Request';
+    const text = `Hi ${admin.name},\n\nYou requested a password reset. Click the link below to reset your password:\n\n${resetUrl}\n\nIf you didn’t request this, please ignore this email.\n\nThank you!`;
+    await sendEmail(email, subject, text);
+
+    return resetUrl; // Useful for testing or logging
+};
+const resetPassword = async (token, newPassword) => {
+    // Hash the received token to match the stored hashed token
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Find admin with the matching token and valid expiry
+    const admin = await Admin.findOne({
+        resetPasswordToken: hashedToken,
+        resetPasswordExpires: { $gt: Date.now() }, // Ensure the token is not expired
+    });
+
+    if (!admin) {
+        throw new Error('Invalid or expired reset token');
+    }
+
+    // Update the admin's password
+    admin.password = await bcrypt.hash(newPassword, 10);
+    admin.resetPasswordToken = undefined; // Clear the reset token
+    admin.resetPasswordExpires = undefined; // Clear the expiry
+    await admin.save();
+
+    return 'Password has been reset successfully';
+};
+
+
+module.exports = {
+    authenticateAdmin,
+    createAdminAccount,
+    sendPasswordResetEmail,
+    resetPassword
+};
+
