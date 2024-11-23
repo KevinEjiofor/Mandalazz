@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { findAdminByEmail, createAdmin } = require('../data/repositories/adminRepository');
+const { findAdminByEmail, createAdmin, findAdminByName } = require('../data/repositories/adminRepository');
 const { JWT_SECRET } = require('../../config/config');
 const { sendEmail } = require('../../utils/emailService');
 const crypto = require('crypto');
@@ -31,69 +31,140 @@ const authenticateAdmin = async (email, password) => {
 };
 
 
-const createAdminAccount = async (email, password) => {
+const createAdminAccount = async (name, email, password) => {
+
+    await checkIfAdminExists(name, email);
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newAdmin = await createAdmin(email, hashedPassword);
+
+
+    const newAdmin = await createAdmin(name, email, hashedPassword);
+
 
     const subject = 'Welcome to the Platform';
-    const text = `Hi ${email},\n\nYour admin account has been successfully created.\n\nThank you!`;
+    const text = `Hi ${name},\n\nYour admin account has been successfully created.\n\nThank you!`;
     await sendEmail(email, subject, text);
 
     return newAdmin;
 };
 
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
 
-const sendPasswordResetEmail = async (email) => {
-    const admin = await findAdminByEmail(email);
-    if (!admin) {
-        throw new Error('No account found with this email');
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+        return res.status(400).json({ message: 'Invalid email address' });
     }
 
-    // Generate a reset token (random string)
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: 'User does not exist' });
+        }
 
-    // Store the hashed token in the database (for security)
-    admin.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    admin.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // Token valid for 15 minutes
-    await admin.save();
+        const resetPin = Math.floor(100000 + Math.random() * 900000).toString();
+        user.resetPasswordPin = resetPin;
+        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    // Send email with the reset token
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-    const subject = 'Password Reset Request';
-    const text = `Hi ${admin.name},\n\nYou requested a password reset. Click the link below to reset your password:\n\n${resetUrl}\n\nIf you didn’t request this, please ignore this email.\n\nThank you!`;
-    await sendEmail(email, subject, text);
+        await user.save();
 
-    return resetUrl; // Useful for testing or logging
+        const subject = 'Password Reset Request';
+        const htmlContent = `
+            <p>You requested a password reset</p>
+            <p>Your reset pin is: <strong>${resetPin}</strong></p>
+            <p>The pin is valid for 10 minutes.</p>
+        `;
+        await sendEmail(user.email, subject, htmlContent);
+
+        res.status(200).json({ message: 'Password reset pin sent' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
 };
-const resetPassword = async (token, newPassword) => {
-    // Hash the received token to match the stored hashed token
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
-    // Find admin with the matching token and valid expiry
-    const admin = await Admin.findOne({
-        resetPasswordToken: hashedToken,
-        resetPasswordExpires: { $gt: Date.now() }, // Ensure the token is not expired
-    });
 
-    if (!admin) {
-        throw new Error('Invalid or expired reset token');
+const validateResetPin = async (req, res) => {
+    const { resetPin } = req.body;
+
+    if (!resetPin) {
+        return res.status(400).json({ message: 'Reset pin is required' });
     }
 
-    // Update the admin's password
-    admin.password = await bcrypt.hash(newPassword, 10);
-    admin.resetPasswordToken = undefined; // Clear the reset token
-    admin.resetPasswordExpires = undefined; // Clear the expiry
-    await admin.save();
+    try {
+        const user = await User.findOne({
+            resetPasswordPin: resetPin,
+            resetPasswordExpire: { $gt: Date.now() },
+        });
 
-    return 'Password has been reset successfully';
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired pin' });
+        }
+
+        res.status(200).json({ message: 'Pin is valid', userId: user._id });
+    } catch (error) {
+        console.error('Server error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+
+const resetPassword = async (req, res) => {
+    const { resetPin, newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    try {
+        const user = await User.findOne({
+            resetPasswordPin: resetPin,
+            resetPasswordExpire: { $gt: Date.now() },
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired pin' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+
+        user.resetPasswordPin = undefined;
+        user.resetPasswordExpire = undefined;
+
+        await user.save();
+
+        res.status(200).json({ message: 'Password reset successful' });
+    } catch (error) {
+        console.error('Server error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const logoutUser = (req, res) => {
+    res.status(200).json({ message: 'Logout successful' });
+};
+
+const checkIfAdminExists = async (name, email) => {
+
+    const existingAdminByName = await findAdminByName(name);  // Pass name directly
+    if (existingAdminByName) {
+        throw new Error('Admin name is already taken. Please choose another name.');
+    }
+
+    const existingAdminByEmail = await findAdminByEmail(email);  // Pass email directly
+    if (existingAdminByEmail) {
+        throw new Error('Email is already in use. Please use a different email address.');
+    }
 };
 
 
 module.exports = {
     authenticateAdmin,
     createAdminAccount,
-    sendPasswordResetEmail,
-    resetPassword
+    forgotPassword,
+    validateResetPin,
+    resetPassword,
+    logoutUser,
+
 };
 
