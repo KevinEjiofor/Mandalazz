@@ -15,7 +15,7 @@ const loginAdminController = async (req, res) => {
 const createAdminController = async (req, res) => {
     try {
         const { name, email, password } = req.body;
-        const newAdmin = await adminAuthService.createAdminAccount(name, email, password);
+        await adminAuthService.createAdminAccount(name, email, password);
         sendSuccessResponse(res, { message: 'Admin created successfully' });
     } catch (error) {
         sendErrorResponse(res, error.message);
@@ -48,8 +48,6 @@ const resetPasswordController = async (req, res) => {
         sendErrorResponse(res, error.message);
     }
 };
-
-
 
 const logoutUser = (req, res) => {
     try {
