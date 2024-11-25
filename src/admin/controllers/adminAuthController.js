@@ -1,7 +1,8 @@
 const adminAuthService = require('../services/adminAuthService');
 const { sendErrorResponse, sendSuccessResponse } = require('../../utils/responseHandler');
+const {forgotPassword, validateResetToken, resetPassword} = require("../services/adminAuthService");
 
-const loginAdmin = async (req, res) => {
+const loginAdminController = async (req, res) => {
     try {
         const { email, password } = req.body;
         const token = await adminAuthService.authenticateAdmin(email, password);
@@ -11,7 +12,7 @@ const loginAdmin = async (req, res) => {
     }
 };
 
-const createAdmin = async (req, res) => {
+const createAdminController = async (req, res) => {
     try {
         const { name, email, password } = req.body;
         const newAdmin = await adminAuthService.createAdminAccount(name, email, password);
@@ -20,36 +21,35 @@ const createAdmin = async (req, res) => {
         sendErrorResponse(res, error.message);
     }
 };
-
-const forgotPassword = async (req, res) => {
+const forgotPasswordController = async (req, res) => {
     try {
         const { email } = req.body;
-        await adminAuthService.forgotPassword(email);
-        sendSuccessResponse(res, { message: 'Password reset pin sent to your email' });
+        await forgotPassword(email);
+        sendSuccessResponse(res, { message: 'Reset token sent to email' });
+    } catch (error) {
+        sendErrorResponse(res, error.message);
+    }
+};
+const validateResetTokenController = async (req, res) => {
+    try {
+        const { email, token } = req.body;
+        await validateResetToken(email, token);
+        sendSuccessResponse(res, { message: 'Token is valid' });
+    } catch (error) {
+        sendErrorResponse(res, error.message);
+    }
+};
+const resetPasswordController = async (req, res) => {
+    try {
+        const { email, token, newPassword } = req.body;
+        await resetPassword(email, token, newPassword);
+        sendSuccessResponse(res, { message: 'Password reset successful' });
     } catch (error) {
         sendErrorResponse(res, error.message);
     }
 };
 
-const validateResetPin = async (req, res) => {
-    try {
-        const { resetPin } = req.body;
-        const userId = await adminAuthService.validateResetPin(resetPin);
-        sendSuccessResponse(res, { message: 'Pin is valid', userId });
-    } catch (error) {
-        sendErrorResponse(res, error.message);
-    }
-};
 
-const resetPassword = async (req, res) => {
-    try {
-        const { resetPin, newPassword } = req.body;
-        await adminAuthService.resetPassword(resetPin, newPassword);
-        sendSuccessResponse(res, { message: 'Password reset successfully' });
-    } catch (error) {
-        sendErrorResponse(res, error.message);
-    }
-};
 
 const logoutUser = (req, res) => {
     try {
@@ -61,10 +61,10 @@ const logoutUser = (req, res) => {
 };
 
 module.exports = {
-    loginAdmin,
-    createAdmin,
-    forgotPassword,
-    validateResetPin,
-    resetPassword,
+    loginAdminController,
+    createAdminController,
+    forgotPasswordController,
+    validateResetTokenController,
+    resetPasswordController,
     logoutUser,
 };

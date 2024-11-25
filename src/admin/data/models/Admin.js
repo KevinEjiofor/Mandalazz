@@ -5,7 +5,7 @@ const adminSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true , match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'] },
     password: { type: String, required: true },
     isAdmin: { type: Boolean, default: true },
-    resetPasswordPin: String,
+    resetPasswordToken: String,
     resetPasswordExpire: Date,
 });
 
