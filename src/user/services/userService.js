@@ -1,14 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../data/models/userModel');
+const { checkIfUserExists } = require('../../utils/validation')
 const { sendEmail } = require('../../utils/emailService');
+const { generateResetToken } = require('../../utils/tokenGenerator');
 const { JWT_SECRET } = process.env;
 
 const createUserAccount = async (firstName, lastName, email, password) => {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-        throw new Error('Email is already in use');
-    }
+   await checkIfUserExists(email)
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({ firstName, lastName, email, password: hashedPassword });
@@ -46,9 +45,9 @@ const forgotPassword = async (email) => {
         throw new Error('No user found with this email');
     }
 
-    const resetPin = Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit PIN
+    const resetPin = generateResetToken();
     user.resetPasswordPin = resetPin;
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // Expires in 10 minutes
+    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await user.save();
 
     const subject = 'Password Reset PIN';

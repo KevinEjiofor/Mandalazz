@@ -4,7 +4,7 @@ const { findAdminByEmail, createAdmin, findAdminByName } = require('../data/repo
 const { JWT_SECRET } = require('../../config/config');
 const { sendEmail } = require('../../utils/emailService');
 const { generateResetToken } = require('../../utils/tokenGenerator');
-const { checkIfAdminExists } = require('../../utils/validatingAdmin');
+const { checkIfAdminExists } = require('../../utils/validation');
 
 
 const authenticateAdmin = async (email, password) => {
@@ -62,7 +62,7 @@ const forgotPassword = async (email) => {
 
     const resetToken = generateResetToken();
     admin.resetPasswordToken = resetToken;
-    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
+    admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
     await admin.save();
 
     const subject = 'Password Reset Token';
