@@ -4,7 +4,7 @@ const { findAdminByEmail, createAdmin, findAdminByName } = require('../data/repo
 const { JWT_SECRET } = require('../../config/config');
 const { sendEmail } = require('../../utils/emailService');
 const { generateResetToken } = require('../../utils/tokenGenerator');
-
+const { checkIfAdminExists } = require('../../utils/validatingAdmin');
 
 
 const authenticateAdmin = async (email, password) => {
@@ -50,22 +50,10 @@ const createAdminAccount = async (name, email, password) => {
     return newAdmin;
 };
 
-const logoutUser = (req, res) => {
+const logoutAdmin = (req, res) => {
     res.status(200).json({ message: 'Logout successful' });
 };
 
-const checkIfAdminExists = async (name, email) => {
-
-    const existingAdminByName = await findAdminByName(name);  // Pass name directly
-    if (existingAdminByName) {
-        throw new Error('Admin name is already taken. Please choose another name.');
-    }
-
-    const existingAdminByEmail = await findAdminByEmail(email);  // Pass email directly
-    if (existingAdminByEmail) {
-        throw new Error('Email is already in use. Please use a different email address.');
-    }
-};
 const forgotPassword = async (email) => {
     const admin = await findAdminByEmail(email);
     if (!admin) {
@@ -96,7 +84,7 @@ const validateResetToken = async (email, token) => {
         throw new Error('Invalid or expired reset token');
     }
 
-    return true; // Token is valid
+    return true;
 };
 const resetPassword = async (email, token, newPassword) => {
     const admin = await findAdminByEmail(email);
@@ -127,7 +115,7 @@ module.exports = {
     forgotPassword,
     validateResetToken,
     resetPassword,
-    logoutUser,
+    logoutAdmin,
 
 };
 

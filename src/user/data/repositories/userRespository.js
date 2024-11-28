@@ -1,8 +1,8 @@
 const user = require("../../../user/data/models/userModel");
-const createAdmin = async (name, email, password) => {
-    const newUser = new user({ firstName, lastNamee,email, password });
+const createUser = async (firstName,lastName, email, password) => {
+    const newUser = new user({ firstName, lastName, email, password });
     await newUser.save();
     return newUser;
 };
 
-module.exports = { createAdmin};
+module.exports = { createUser };
