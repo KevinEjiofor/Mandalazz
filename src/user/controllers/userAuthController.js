@@ -4,7 +4,7 @@ const createUserController = async (req, res) => {
     try {
         const { firstName, lastName, email, password } = req.body;
         const user = await userService.createUserAccount(firstName, lastName, email, password);
-        sendSuccessResponse(res, { message: 'User created successfully', user });
+        sendSuccessResponse(res, { message: 'User created successfully'});
     } catch (error) {
         sendErrorResponse(res, error.message);
     }

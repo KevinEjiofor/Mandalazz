@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { findAdminByEmail, createAdmin, findAdminByName } = require('../data/repositories/adminRepository');
 const { JWT_SECRET } = require('../../config/config');
-const { sendEmail } = require('../../utils/emailService');
+const { userNotifications } = require('../../utils/emailService');
 const { generateResetToken } = require('../../utils/tokenGenerator');
 const { checkIfAdminExists } = require('../../utils/validation');
 
@@ -27,7 +27,7 @@ const authenticateAdmin = async (email, password) => {
     );
     const subject = 'Login Alert';
     const text = `Hi EveryThing ManDelazz's Admin,\n\nYou just logged in to the platform.\n\nIf this wasn't you, please contact support immediately.\n\nThank you!`;
-    await sendEmail(email, subject, text);
+    await userNotifications(email, subject, text);
 
     return token;
 };
@@ -45,7 +45,7 @@ const createAdminAccount = async (name, email, password) => {
 
     const subject = 'Welcome to the Platform';
     const text = `Hi ${name},\n\nYour admin account has been successfully created.\n\nThank you!`;
-    await sendEmail(email, subject, text);
+    await userNotifications(email, subject, text);
 
     return newAdmin;
 };

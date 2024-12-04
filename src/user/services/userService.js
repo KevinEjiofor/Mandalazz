@@ -30,11 +30,14 @@ const authenticateUser = async (email, password) => {
         throw new Error('Invalid email or password');
     }
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+        { id: user._id },
+        JWT_SECRET, { expiresIn: '1h' }
+    );
 
-    const subject = 'Login Alert';
-    const text = `Hi ${user.firstName},\n\nYou just logged into the platform.\n\nIf this wasn't you, contact support immediately.`;
-    await sendEmail(email, subject, text);
+    // const subject = 'Login Alert';
+    // const text = `Hi ${user.firstName},\n\nYou just logged into the platform.\n\nIf this wasn't you, contact support immediately.`;
+    // await sendEmail(email, subject, text);
 
     return token;
 };
