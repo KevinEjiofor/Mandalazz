@@ -21,7 +21,7 @@ const authenticateAdmin = async (email, password) => {
     }
 
     const token = jwt.sign(
-        { id: admin._id, isAdmin: admin.isAdmin },
+        { id: admin._id,  role: admin.role, },
         JWT_SECRET,
         { expiresIn: '1h' }
     );

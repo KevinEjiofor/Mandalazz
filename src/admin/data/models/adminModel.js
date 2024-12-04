@@ -8,9 +8,9 @@ const adminSchema = new mongoose.Schema({
     role: {
         type: String,
         enum: Object.values(RoleEnum),
-        default: RoleEnum.USER,
+        default: RoleEnum.ADMIN,
     },
-    isAdmin: { type: Boolean, default: true },
+
     resetPasswordToken: String,
     resetPasswordExpire: Date,
 });
