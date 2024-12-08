@@ -24,6 +24,8 @@ class AdminAuthService {
             { expiresIn: '3h' }
         );
 
+
+
         const subject = 'Login Alert';
         const text = `Hi EveryThing ManDelazz's Admin,\n\nYou just logged in to the platform.\n\nIf this wasn't you, please contact support immediately.\n\nThank you!`;
         await userNotifications(email, subject, text);

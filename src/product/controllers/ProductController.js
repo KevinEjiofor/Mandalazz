@@ -1,4 +1,5 @@
-const productService = require('../services/productService');
+const productService = require('../services/ProductService');
+const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandler');
 
 class ProductController {
     async addProduct(req, res) {
@@ -8,11 +9,11 @@ class ProductController {
             const result = await productService.addProduct(
                 { name, price, description },
                 req.admin,
-                req.file.path
+                req.file?.path
             );
-            res.status(201).json(result);
+            sendSuccessResponse(res, result);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            sendErrorResponse(res, error.message);
         }
     }
 
@@ -23,29 +24,29 @@ class ProductController {
             const result = await productService.updateProduct(
                 req.params.id,
                 { name, price, description },
-                req.file?.path // optional image update
+                req.file?.path
             );
-            res.status(200).json(result);
+            sendSuccessResponse(res, result);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            sendErrorResponse(res, error.message);
         }
     }
 
     async deleteProduct(req, res) {
         try {
             const result = await productService.deleteProduct(req.params.id);
-            res.status(200).json(result);
+            sendSuccessResponse(res, result);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            sendErrorResponse(res, error.message);
         }
     }
 
     async getAllProducts(req, res) {
         try {
             const products = await productService.fetchAllProducts();
-            res.status(200).json(products);
+            sendSuccessResponse(res, products);
         } catch (error) {
-            res.status(500).json({ message: error.message });
+            sendErrorResponse(res, error.message);
         }
     }
 }
