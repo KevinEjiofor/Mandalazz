@@ -19,6 +19,7 @@ class ProductService {
                 imageUrls,
                 sizes: productData.sizes,
                 createdBy: admin._id,
+                // adminName: admin.name
             });
 
             return { message: 'Product added successfully', product };
@@ -29,32 +30,41 @@ class ProductService {
 
     async updateProduct(productId, updateData, imagePaths) {
         try {
+
             const product = await Product.findById(productId);
             if (!product) {
                 throw new Error('Product not found');
             }
 
-            // Handle multiple image uploads
+            console.log("Original Product:", product);
+
             if (imagePaths && imagePaths.length > 0) {
-                // Delete old images from Cloudinary
+
                 const deletePromises = product.imageUrls.map((url) =>
-                    cloudinary.uploader.destroy(url.split('/').pop())
+                    cloudinary.uploader.destroy(url.split('/').slice(-2).join('/').split('.')[0])
                 );
                 await Promise.all(deletePromises);
 
-                // Upload new images
+
                 const uploadPromises = imagePaths.map((path) =>
                     cloudinary.uploader.upload(path, { folder: 'products' })
                 );
                 const results = await Promise.all(uploadPromises);
                 product.imageUrls = results.map((result) => result.secure_url);
+
+                console.log("Updated Image URLs:", product.imageUrls);
             }
 
+
+            console.log("Update Data:", updateData);
             Object.assign(product, updateData);
+
             await product.save();
 
+            console.log("Updated Product:", product);
             return { message: 'Product updated successfully', product };
         } catch (error) {
+            console.error("Error updating product:", error.message);
             throw new Error(error.message);
         }
     }

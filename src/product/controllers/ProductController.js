@@ -24,6 +24,7 @@ class ProductController {
 
     async updateProduct(req, res) {
         try {
+
             const { name, price, description, sizes } = req.body;
 
             const filePaths = req.files?.map(file => file.path) || [];
