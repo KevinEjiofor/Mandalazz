@@ -10,6 +10,7 @@ const productRoutes = require('./routes/productRoutes')
 
 app.use(express.json());
 app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 
 const mongodbURL = process.env.MONGO_URI;
 connectDB();

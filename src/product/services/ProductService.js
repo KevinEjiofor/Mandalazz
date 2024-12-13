@@ -1,39 +1,53 @@
 const Product = require('../data/models/productModel');
 const cloudinary = require('../../utils/cloudinary');
-const adminModel = require('../../admin/data/repositories/adminRepository');
+
 
 class ProductService {
-    async addProduct(productData, admin, imagePath) {
-
+    async addProduct(productData, admin, imagePaths) {
         try {
 
-            const result = await cloudinary.uploader.upload(imagePath, { folder: 'products' });
+            const uploadPromises = imagePaths.map((path) =>
+                cloudinary.uploader.upload(path, { folder: 'products' })
+            );
+            const results = await Promise.all(uploadPromises);
+
+
+            const imageUrls = results.map((result) => result.secure_url);
 
             const product = await Product.create({
                 ...productData,
-
-                imageUrl: result.secure_url,
-                createdBy:admin._id,
+                imageUrls,
+                sizes: productData.sizes,
+                createdBy: admin._id,
             });
 
-
-            return { message: 'Product added successfully'};
+            return { message: 'Product added successfully', product };
         } catch (error) {
             throw new Error(error.message);
         }
     }
 
-    async updateProduct(productId, updateData, imagePath) {
+    async updateProduct(productId, updateData, imagePaths) {
         try {
             const product = await Product.findById(productId);
             if (!product) {
                 throw new Error('Product not found');
             }
 
-            if (imagePath) {
-                const result = await cloudinary.uploader.upload(imagePath, { folder: 'products' });
-                await cloudinary.uploader.destroy(product.imageUrl.split('/').pop()); // Remove old image
-                product.imageUrl = result.secure_url;
+            // Handle multiple image uploads
+            if (imagePaths && imagePaths.length > 0) {
+                // Delete old images from Cloudinary
+                const deletePromises = product.imageUrls.map((url) =>
+                    cloudinary.uploader.destroy(url.split('/').pop())
+                );
+                await Promise.all(deletePromises);
+
+                // Upload new images
+                const uploadPromises = imagePaths.map((path) =>
+                    cloudinary.uploader.upload(path, { folder: 'products' })
+                );
+                const results = await Promise.all(uploadPromises);
+                product.imageUrls = results.map((result) => result.secure_url);
             }
 
             Object.assign(product, updateData);
@@ -52,9 +66,12 @@ class ProductService {
                 throw new Error('Product not found');
             }
 
-            await cloudinary.uploader.destroy(product.imageUrl.split('/').pop()); // Remove image from Cloudinary
-            await product.remove(); // Delete the product
+            for (const oldImage of product.imageUrls) {
+                const publicId = oldImage.split('/').slice(-2).join('/').split('.')[0];
+                await cloudinary.uploader.destroy(publicId);
+            }
 
+            await product.remove();
             return { message: 'Product deleted successfully' };
         } catch (error) {
             throw new Error(error.message);
@@ -63,7 +80,7 @@ class ProductService {
 
     async fetchAllProducts() {
         try {
-            return await Product.find(); // Fetch all products from the database
+            return await Product.find();
         } catch (error) {
             throw new Error(error.message);
         }

@@ -1,32 +1,41 @@
 const productService = require('../services/ProductService');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandler');
 
+
 class ProductController {
     async addProduct(req, res) {
-        const { name, price, description } = req.body;
-
         try {
+            const { name, price, description, sizes } = req.body;
+
+            const filePaths = req.files?.map(file => file.path) || [];
+            const formattedSizes = Array.isArray(sizes) ? sizes : [sizes];
+
             const result = await productService.addProduct(
-                { name, price, description },
+                { name, price, description, sizes: formattedSizes },
                 req.admin,
-                req.file?.path
+                filePaths
             );
-            sendSuccessResponse(res, result);
+
+            sendSuccessResponse(res,  'Product has been successfully uploaded.');
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
 
     async updateProduct(req, res) {
-        const { name, price, description } = req.body;
-
         try {
+            const { name, price, description, sizes } = req.body;
+
+            const filePaths = req.files?.map(file => file.path) || [];
+            const formattedSizes = Array.isArray(sizes) ? sizes : [sizes];
+
             const result = await productService.updateProduct(
                 req.params.id,
-                { name, price, description },
-                req.file?.path
+                { name, price, description, sizes: formattedSizes },
+                filePaths
             );
-            sendSuccessResponse(res, result);
+
+            sendSuccessResponse(res,  'Product has been successfully updated.');
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -35,7 +44,7 @@ class ProductController {
     async deleteProduct(req, res) {
         try {
             const result = await productService.deleteProduct(req.params.id);
-            sendSuccessResponse(res, result);
+            sendSuccessResponse(res,  'Product has been successfully deleted.');
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -52,3 +61,4 @@ class ProductController {
 }
 
 module.exports = new ProductController();
+
