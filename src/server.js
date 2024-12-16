@@ -7,6 +7,8 @@ const { connectDB } = require('./admin/data/repositories/adminRepository');
 const adminRoutes = require('./routes/adminAuthRoutes');
 const userRoutes = require('./routes/userAuthRoutes');
 const productRoutes = require('./routes/productRoutes')
+const orderRoutes = require('./routes/orderRoutes')
+
 
 app.use(express.json());
 app.use(cors());
@@ -18,6 +20,7 @@ connectDB();
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
+app.use('/api/order', orderRoutes);
 
 
 app.use((req, res, next) => {

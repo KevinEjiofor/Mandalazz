@@ -36,8 +36,6 @@ class ProductService {
                 throw new Error('Product not found');
             }
 
-            console.log("Original Product:", product);
-
             if (imagePaths && imagePaths.length > 0) {
 
                 const deletePromises = product.imageUrls.map((url) =>
@@ -52,7 +50,7 @@ class ProductService {
                 const results = await Promise.all(uploadPromises);
                 product.imageUrls = results.map((result) => result.secure_url);
 
-                console.log("Updated Image URLs:", product.imageUrls);
+
             }
 
 
@@ -61,10 +59,9 @@ class ProductService {
 
             await product.save();
 
-            console.log("Updated Product:", product);
             return { message: 'Product updated successfully', product };
         } catch (error) {
-            console.error("Error updating product:", error.message);
+
             throw new Error(error.message);
         }
     }
@@ -81,7 +78,7 @@ class ProductService {
                 await cloudinary.uploader.destroy(publicId);
             }
 
-            await product.remove();
+            await product.deleteOne();
             return { message: 'Product deleted successfully' };
         } catch (error) {
             throw new Error(error.message);

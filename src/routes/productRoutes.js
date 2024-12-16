@@ -7,8 +7,6 @@ const isAdmin = require('../middlewares/isAdmin');
 
 router.post('/add', authMiddleware, isAdmin,upload, productController.addProduct.bind(productController));
 router.put('/update/:id', (req, res, next) => {
-    // console.log('Incoming Files:', req.files);
-    // console.log('Incoming Body:', req.body);
     next();
 }, authMiddleware, isAdmin, upload, productController.updateProduct.bind(productController));
 
