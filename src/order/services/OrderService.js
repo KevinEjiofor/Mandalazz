@@ -3,8 +3,12 @@ const Product = require('../../product/data/models/productModel');
 
 class OrderService {
     static async createOrder(userId, orderDetails) {
-        const { products } = orderDetails;
+        const { products, userDetails } = orderDetails;
 
+
+        if (!userDetails || !userDetails.address || !userDetails.phoneNumber) {
+            throw new Error('User details including address and phone number are required');
+        }
 
         let totalAmount = 0;
         const productDetails = await Promise.all(
@@ -17,16 +21,18 @@ class OrderService {
         );
 
         const newOrder = new Order({
-            user: userId,
+            user: userId || null,
             products: productDetails,
             totalAmount,
+            userDetails,
         });
 
         await newOrder.save();
         return newOrder;
     }
 
-    static async getOrdersByUser(userId) {
+
+static async getOrdersByUser(userId) {
         return await Order.find({ user: userId }).populate('products.product');
     }
 

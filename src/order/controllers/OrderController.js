@@ -4,7 +4,7 @@ const { sendSuccessResponse, sendErrorResponse } = require('../../utils/response
 class OrderController {
     static async createOrder(req, res) {
         try {
-            const userId = req.user.id;
+            const userId = req.user?.id;
             const orderDetails = req.body;
 
             const newOrder = await OrderService.createOrder(userId, orderDetails);
@@ -13,7 +13,6 @@ class OrderController {
             sendErrorResponse(res, error.message);
         }
     }
-
     static async deleteOrder(req, res) {
         try {
             const { id: orderId } = req.params;
