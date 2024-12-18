@@ -8,7 +8,7 @@ class OrderController {
             const orderDetails = req.body;
 
             const newOrder = await OrderService.createOrder(userId, orderDetails);
-            sendSuccessResponse(res, { message: 'Order created successfully', order: newOrder });
+            sendSuccessResponse(res, { message: 'Order created successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -24,16 +24,36 @@ class OrderController {
             sendErrorResponse(res, error.message);
         }
     }
-
     static async getOrders(req, res) {
         try {
-            const userId = req.user.id;
-            const orders = await OrderService.getOrdersByUser(userId);
+
+            const isAdmin = req.user?.role === 'admin';
+
+            let orders;
+            if (isAdmin) {
+
+                orders = await OrderService.getAllOrders();
+            } else {
+
+                const userId = req.user.id;
+                orders = await OrderService.getOrdersByUser(userId);
+            }
+
             sendSuccessResponse(res, orders);
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
+
+    // static async getOrders(req, res) {
+    //     try {
+    //         const userId = req.user.id;
+    //         const orders = await OrderService.getOrdersByUser(userId);
+    //         sendSuccessResponse(res, orders);
+    //     } catch (error) {
+    //         sendErrorResponse(res, error.message);
+    //     }
+    // }
 
     static async updateOrderStatus(req, res) {
         try {

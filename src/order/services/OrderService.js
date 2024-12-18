@@ -1,22 +1,25 @@
-const Order = require('../data/models/orderModel');
 const Product = require('../../product/data/models/productModel');
+const Order = require('../data/models/orderModel');
+
 
 class OrderService {
     static async createOrder(userId, orderDetails) {
         const { products, userDetails } = orderDetails;
-
 
         if (!userDetails || !userDetails.address || !userDetails.phoneNumber) {
             throw new Error('User details including address and phone number are required');
         }
 
         let totalAmount = 0;
+
         const productDetails = await Promise.all(
             products.map(async (item) => {
                 const product = await Product.findById(item.product);
                 if (!product) throw new Error(`Product with ID ${item.product} not found`);
+
+
                 totalAmount += product.price * item.quantity;
-                return { product: item.product, quantity: item.quantity };
+                return { product: item.product, quantity: item.quantity, size: item.size };
             })
         );
 
@@ -31,9 +34,11 @@ class OrderService {
         return newOrder;
     }
 
-
-static async getOrdersByUser(userId) {
-        return await Order.find({ user: userId }).populate('products.product');
+    static async getOrdersByUser(userId) {
+        return Order.find({user: userId}).populate('products.product');
+    }
+    static async getAllOrders() {
+        return Order.find({}).populate('products.product');
     }
 
     static async updateOrderStatus(orderId, status) {
@@ -45,16 +50,12 @@ static async getOrdersByUser(userId) {
     }
 
     static async deleteOrder(orderId, userId) {
-        try {
-            const order = await Order.findOne({ _id: orderId, user: userId });
-            if (!order) {
-                throw new Error('Order not found or you are not authorized to delete this order');
-            }
-            await order.deleteOne();
-            return { message: 'Order deleted successfully' };
-        } catch (error) {
-            throw new Error(error.message);
+        const order = await Order.findOne({ _id: orderId, user: userId });
+        if (!order) {
+            throw new Error('Order not found or you are not authorized to delete this order');
         }
+        await order.deleteOne();
+        return { message: 'Order deleted successfully' };
     }
 }
 

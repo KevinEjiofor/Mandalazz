@@ -20,7 +20,7 @@ connectDB();
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
-app.use('/api/order', orderRoutes);
+app.use('/api/orders', orderRoutes);
 
 
 app.use((req, res, next) => {
