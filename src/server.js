@@ -8,6 +8,7 @@ const adminRoutes = require('./routes/adminAuthRoutes');
 const userRoutes = require('./routes/userAuthRoutes');
 const productRoutes = require('./routes/productRoutes')
 const orderRoutes = require('./routes/orderRoutes')
+const cartRoutes = require('./routes/cartRoutes')
 
 
 app.use(express.json());
@@ -21,6 +22,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/cart', cartRoutes);
 
 
 app.use((req, res, next) => {
