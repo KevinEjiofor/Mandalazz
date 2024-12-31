@@ -7,7 +7,7 @@ class CartService {
         if (!product) throw new Error('Product not found');
 
         const cartQuery = userId ? { user: userId } : { guestId };
-        const expirationPeriod = userId ? 10 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000; // 10 days or 24 hours
+        const expirationPeriod = userId ? 10 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
         const expiresAt = new Date(Date.now() + expirationPeriod);
 
         let cart = await Cart.findOne(cartQuery);
@@ -28,7 +28,7 @@ class CartService {
             } else {
                 cart.products.push({ product: productId, quantity, size });
             }
-            cart.expiresAt = expiresAt; // Update expiration
+            cart.expiresAt = expiresAt;
             await cart.save();
         }
 

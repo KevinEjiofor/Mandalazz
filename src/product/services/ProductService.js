@@ -7,7 +7,7 @@ class ProductService {
         try {
 
             const uploadPromises = imagePaths.map((path) =>
-                cloudinary.uploader.upload(path, { folder: 'products' })
+                cloudinary.uploader.upload(path, {folder: 'products'})
             );
             const results = await Promise.all(uploadPromises);
 
@@ -22,7 +22,7 @@ class ProductService {
                 // adminName: admin.name
             });
 
-            return { message: 'Product added successfully', product };
+            return {message: 'Product added successfully', product};
         } catch (error) {
             throw new Error(error.message);
         }
@@ -45,7 +45,7 @@ class ProductService {
 
 
                 const uploadPromises = imagePaths.map((path) =>
-                    cloudinary.uploader.upload(path, { folder: 'products' })
+                    cloudinary.uploader.upload(path, {folder: 'products'})
                 );
                 const results = await Promise.all(uploadPromises);
                 product.imageUrls = results.map((result) => result.secure_url);
@@ -59,7 +59,7 @@ class ProductService {
 
             await product.save();
 
-            return { message: 'Product updated successfully', product };
+            return {message: 'Product updated successfully', product};
         } catch (error) {
 
             throw new Error(error.message);
@@ -79,7 +79,7 @@ class ProductService {
             }
 
             await product.deleteOne();
-            return { message: 'Product deleted successfully' };
+            return {message: 'Product deleted successfully'};
         } catch (error) {
             throw new Error(error.message);
         }
@@ -88,6 +88,24 @@ class ProductService {
     async fetchAllProducts() {
         try {
             return await Product.find();
+        } catch (error) {
+            throw new Error(error.message);
+        }
+    }
+
+    async searchProducts(query) {
+        try {
+            const products = await Product.find(
+                {$text: {$search: query}},
+                {score: {$meta: 'textScore'}}
+            ).sort({score: {$meta: 'textScore'}});
+
+
+            if (products.length === 0) {
+                return {message: 'Sorry, no products match your search.'};
+            }
+
+            return products;
         } catch (error) {
             throw new Error(error.message);
         }

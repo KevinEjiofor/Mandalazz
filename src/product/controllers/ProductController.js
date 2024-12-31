@@ -59,6 +59,22 @@ class ProductController {
             sendErrorResponse(res, error.message);
         }
     }
+
+    async searchProducts(req, res) {
+        try {
+            const { query } = req.query;
+
+            if (!query) {
+                return sendErrorResponse(res, 'Query parameter is required');
+            }
+
+            const products = await productService.searchProducts(query);
+            sendSuccessResponse(res, products);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
 }
 
 module.exports = new ProductController();

@@ -12,5 +12,7 @@ router.put('/update/:id', (req, res, next) => {
 
 router.delete('/delete/:id', authMiddleware, isAdmin, productController.deleteProduct.bind(productController));
 router.get('/', productController.getAllProducts.bind(productController));
+router.get('/search', productController.searchProducts.bind(productController));
+
 
 module.exports = router;

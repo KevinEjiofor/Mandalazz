@@ -39,6 +39,14 @@ const productSchema = new mongoose.Schema(
             ref: 'Admin',
             required: [true, 'Admin is required'],
         },
+        createdAt: {
+            type: Date,
+            default: Date.now,
+        },
+        updatedAt: {
+            type: Date,
+            default: Date.now,
+        },
         // adminName: {
         //     type: mongoose.Schema.Types.ObjectId,
         //     ref: 'Admin',
@@ -47,5 +55,8 @@ const productSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+
+productSchema.index({ name: 'text', description: 'text' });
 
 module.exports = mongoose.model('Product', productSchema);
