@@ -1,11 +1,37 @@
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../data/models/userModel');
 const { checkIfUserExists } = require('../../utils/validation');
-const { sendEmail } = require('../../utils/emailService');
+const { sendEmail } = require('../../utils/emailHandler');
 const { generateResetToken } = require('../../utils/tokenGenerator');
+const CartService = require("../../cart/services/CartService");
 
 class UserService {
+
+    static async authenticateUser(email, password, guestId) {
+        const user = await User.findOne({ email });
+        if (!user) {
+            throw new Error('Invalid email or password');
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            throw new Error('Invalid email or password');
+        }
+
+
+        await this.handleUserCart(user._id, guestId);
+
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        return token;
+    }
+
     static async createUserAccount(firstName, lastName, email, password) {
         await checkIfUserExists(email);
 
@@ -22,26 +48,6 @@ class UserService {
         await sendEmail(email, subject, text);
 
         return newUser;
-    }
-
-    static async authenticateUser(email, password) {
-        const user = await User.findOne({ email });
-        if (!user) {
-            throw new Error('Invalid email or password');
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            throw new Error('Invalid email or password');
-        }
-
-        const token = jwt.sign(
-            { id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '1h' }
-        );
-
-        return token;
     }
 
     static async forgotPassword(email) {
@@ -83,6 +89,23 @@ class UserService {
         await user.save();
 
         return user;
+    }
+    static async handleUserCart(userId, guestId) {
+        if (guestId) {
+            await CartService.mergeGuestCartWithUserCart(guestId, userId);
+        }
+    }
+
+    static async getUserByEmail(email) {
+        try {
+            const user = await User.findOne({ email });
+            if (!user) {
+                throw new Error('User not found');
+            }
+            return user;
+        } catch (error) {
+            throw new Error(error.message);
+        }
     }
 }
 

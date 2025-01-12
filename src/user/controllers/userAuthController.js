@@ -1,11 +1,17 @@
 const UserService = require('../services/UserService');
-const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandler');
+const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
+// const CartService = require("../../cart/services/CartService");
 
 class UserController {
     static async createUser(req, res) {
         try {
             const { firstName, lastName, email, password } = req.body;
-            await UserService.createUserAccount(firstName, lastName, email, password);
+            const user = await UserService.createUserAccount(firstName, lastName, email, password);
+
+            // if (req.guestId) {
+            //     await UserService.handleUserCart(user._id, req.guestId);
+            // }
+
             sendSuccessResponse(res, { message: 'User created successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
@@ -15,7 +21,8 @@ class UserController {
     static async loginUser(req, res) {
         try {
             const { email, password } = req.body;
-            const token = await UserService.authenticateUser(email, password);
+
+            const token = await UserService.authenticateUser(email, password, req.guestId);
             sendSuccessResponse(res, { token });
         } catch (error) {
             sendErrorResponse(res, error.message);
@@ -53,7 +60,12 @@ class UserController {
     }
 
     static logout(req, res) {
-        sendSuccessResponse(res, { message: 'Logout successful' });
+        try {
+
+            sendSuccessResponse(res, { message: 'Logout successful' });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
     }
 }
 

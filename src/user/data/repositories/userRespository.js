@@ -6,7 +6,7 @@ const createUser = async (firstName,lastName, email, password) => {
 };
 
 const findUserById = async (id) => {
-    return User.findById(id)
+    return User.findById(id).select('-password');
 };
 
 const logUserActivity = async (userId, action) => {

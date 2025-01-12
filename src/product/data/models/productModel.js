@@ -47,11 +47,11 @@ const productSchema = new mongoose.Schema(
             type: Date,
             default: Date.now,
         },
-        // adminName: {
-        //     type: mongoose.Schema.Types.ObjectId,
-        //     ref: 'Admin',
-        //     required: [true, 'Admin is required'],
-        // }
+        adminName: {
+            type: String,
+            ref: 'Admin',
+            required: [true, 'Admin is required'],
+        }
     },
     { timestamps: true }
 );

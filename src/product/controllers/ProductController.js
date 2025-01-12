@@ -1,5 +1,5 @@
 const productService = require('../services/ProductService');
-const { sendSuccessResponse, sendErrorResponse } = require('../../utils/responseHandler');
+const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
 
 class ProductController {

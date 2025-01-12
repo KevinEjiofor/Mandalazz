@@ -19,7 +19,7 @@ class ProductService {
                 imageUrls,
                 sizes: productData.sizes,
                 createdBy: admin._id,
-                // adminName: admin.name
+                adminName: admin.name
             });
 
             return {message: 'Product added successfully', product};

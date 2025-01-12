@@ -1,5 +1,5 @@
 const AdminAuthService = require('../services/AdminAuthService');
-const { sendErrorResponse, sendSuccessResponse } = require('../../utils/responseHandler');
+const { sendErrorResponse, sendSuccessResponse } = require('../../utils/respondHandler');
 
 class AdminController {
     async login(req, res) {
@@ -60,6 +60,17 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
+    async getUserOverviews(req, res) {
+        try {
+            const { page = 1, limit = 10 } = req.query;
+            const userOverviews = await AdminAuthService.getUserOverviews(parseInt(page), parseInt(limit));
+            sendSuccessResponse(res, userOverviews);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+
 }
 
 module.exports = new AdminController();
