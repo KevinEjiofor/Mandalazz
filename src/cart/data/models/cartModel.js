@@ -1,4 +1,4 @@
-const mongoose = require('mongoose'); // Add this line to import mongoose
+const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const cartSchema = new Schema({
@@ -10,6 +10,10 @@ const cartSchema = new Schema({
     guestId: {
         type: String,
         default: null,
+        expiresAt: {
+            type: Date,
+            default: () => Date.now() + 96 * 60 * 60 * 1000,
+        },
     },
     items: [
         {

@@ -1,11 +1,11 @@
 const Cart = require('../data/models/cartModel');
-const Product = require('../../product/data/models/productModel');
+const { calculateTotalAmount, validateProduct } = require('../../utils/cartHelper');
 
 class CartService {
     static async addToCart(userId, productId, quantity, color, size, guestId = null) {
         let cart;
 
-        await this.validateProduct(productId);
+        await validateProduct(productId);
 
         if (userId) {
             cart = await Cart.findOne({ user: userId });
@@ -30,7 +30,7 @@ class CartService {
             cart.items.push({ product: productId, quantity, color, size });
         }
 
-        cart.totalAmount = await this.calculateTotalAmount(cart.items);
+        cart.totalAmount = await calculateTotalAmount(cart.items);
         await cart.save();
 
         return cart;
@@ -54,7 +54,7 @@ class CartService {
             item.quantity = newQuantity;
         }
 
-        cart.totalAmount = await this.calculateTotalAmount(cart.items);
+        cart.totalAmount = await calculateTotalAmount(cart.items);
         await cart.save();
 
         return cart;
@@ -66,12 +66,11 @@ class CartService {
 
         cart.items = cart.items.filter((item) => item.product.toString() !== productId);
 
-        cart.totalAmount = await this.calculateTotalAmount(cart.items);
+        cart.totalAmount = await calculateTotalAmount(cart.items);
         await cart.save();
 
         return cart;
     }
-
 
     static async clearCart(userId) {
         const cart = await Cart.findOne({ user: userId });
@@ -107,28 +106,9 @@ class CartService {
             }
         });
 
-        userCart.totalAmount = await this.calculateTotalAmount(userCart.items);
+        userCart.totalAmount = await calculateTotalAmount(userCart.items);
         await userCart.save();
         await guestCart.deleteOne();
-    }
-
-    static async calculateTotalAmount(items) {
-        let total = 0;
-        for (const item of items) {
-            const product = await Product.findById(item.product);
-            if (!product) {
-                throw new Error(`Product not found for ID: ${item.product}`);
-            }
-            total += product.price * item.quantity;
-        }
-        return total;
-    }
-
-    static async validateProduct(productId) {
-        const product = await Product.findById(productId);
-        if (!product) {
-            throw new Error('Product not found');
-        }
     }
 }
 
