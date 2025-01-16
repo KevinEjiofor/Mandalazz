@@ -1,4 +1,3 @@
-// utils/cartHelper.js
 const Product = require('../product/data/models/productModel');
 
 module.exports.validateProduct = async (productId) => {

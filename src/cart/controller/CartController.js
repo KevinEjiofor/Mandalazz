@@ -35,17 +35,50 @@ class CartController {
             sendErrorResponse(res, error.message);
         }
     }
-
     static async removeItem(req, res) {
         try {
             const { productId } = req.body;
             const userId = req.user?.id;
-            const cart = await CartService.removeItem(userId, productId);
-            sendSuccessResponse(res, { message: 'Cart item removed' });
+            const guestId = req.guestId; // Make sure this is set by the middleware
+
+            console.log('Product ID:', productId);
+            console.log('User ID:', userId);
+            console.log('Guest ID:', guestId);
+
+            if (!userId && !guestId) {
+                return sendErrorResponse(res, 'User or guest ID is required', 400);
+            }
+
+            const cart = await CartService.removeItem(userId, guestId, productId);
+            sendSuccessResponse(res, { message: 'Cart item removed', cart });
         } catch (error) {
+            console.error(error);
             sendErrorResponse(res, error.message);
         }
     }
+
+
+    //
+    // static async removeItem(req, res) {
+    //     try {
+    //         const { productId } = req.body;
+    //
+    //         // Extract userId (if logged in) or guestId (if guest) from the request
+    //         const userId = req.user?.id;
+    //         const guestId = req.cookies?.guestId; // Assuming guestId is stored in cookies
+    //
+    //         if (!userId && !guestId) {
+    //             return sendErrorResponse(res, 'User or guest ID is required', 400);
+    //         }
+    //
+    //         // Remove the item from the appropriate cart
+    //         const cart = await CartService.removeItem(userId, productId, guestId);
+    //         sendSuccessResponse(res, { message: 'Cart item removed', cart });
+    //     } catch (error) {
+    //         sendErrorResponse(res, error.message);
+    //     }
+    // }
+
 
     static async clearCart(req, res) {
         try {
