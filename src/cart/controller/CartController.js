@@ -39,11 +39,7 @@ class CartController {
         try {
             const { productId } = req.body;
             const userId = req.user?.id;
-            const guestId = req.guestId; // Make sure this is set by the middleware
-
-            console.log('Product ID:', productId);
-            console.log('User ID:', userId);
-            console.log('Guest ID:', guestId);
+            const guestId = req.guestId;
 
             if (!userId && !guestId) {
                 return sendErrorResponse(res, 'User or guest ID is required', 400);

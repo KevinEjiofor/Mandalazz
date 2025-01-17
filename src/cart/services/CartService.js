@@ -64,28 +64,6 @@ class CartService {
         return cart;
     }
 
-    // static async removeItem(userId, guestId, productId) {
-    //     let cart;
-    //
-    //     if (userId) {
-    //         cart = await Cart.findOne({ user: userId });
-    //     } else if (guestId) {
-    //         cart = await Cart.findOne({ guestId });
-    //     }
-    //
-    //     if (!cart) {
-    //         throw new Error('Cart not found');
-    //     }
-    //
-    //
-    //     cart.items = cart.items.filter((item) => item.product.toString() !== productId);
-    //
-    //     cart.totalAmount = await calculateTotalAmount(cart.items);
-    //     await cart.save();
-    //
-    //     return cart;
-    // }
-
     static async clearCart(userId) {
         const cart = await Cart.findOne({ user: userId });
         if (!cart) throw new Error('Cart not found');
