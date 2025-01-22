@@ -1,10 +1,11 @@
 const mongoose = require('mongoose');
-const CheckoutStatus = require("../../../config/orderStatus");
+const CheckoutStatus = require('../../../config/orderStatus');
 
 const checkoutSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        required: true,
     },
     products: [
         {
@@ -19,6 +20,11 @@ const checkoutSchema = new mongoose.Schema({
                 min: 1,
             },
             size: {
+                type: String,
+                required: true,
+                trim: true,
+            },
+            color: {
                 type: String,
                 required: true,
                 trim: true,
@@ -46,17 +52,18 @@ const checkoutSchema = new mongoose.Schema({
         email: {
             type: String,
             match: [/^\S+@\S+\.\S+$/, 'Invalid email address'],
-        },
-        serialCode: {
-            type: String,
-            unique: true,
             required: true,
         },
-        paymentType: {
-            type: String,
-            enum: ['payment_on_delivery', 'online_payment'],
-            required: true,
-        },
+    },
+    paymentType: {
+        type: String,
+        enum: ['payment_on_delivery', 'online_payment'],
+        required: true,
+    },
+    paymentStatus: {
+        type: String,
+        enum: ['pending', 'paid', 'failed'],
+        default: 'pending',
     },
 }, { timestamps: true });
 

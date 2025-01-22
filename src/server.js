@@ -8,7 +8,7 @@ const { connectDB } = require('./admin/data/repositories/adminRepository');
 const adminRoutes = require('./routes/adminAuthRoutes');
 const userRoutes = require('./routes/userAuthRoutes');
 const productRoutes = require('./routes/productRoutes');
-const orderRoutes = require('./routes/checkoutRoutes');
+const checkoutRoutes = require('./routes/checkoutRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const guestMiddleware = require("./middlewares/guestMiddleware");
 
@@ -36,7 +36,7 @@ connectDB();
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/checkout', checkoutRoutes);
 app.use('/api/cart', cartRoutes);
 
 app.use((req, res, next) => {

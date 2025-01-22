@@ -1,114 +1,112 @@
-const Product = require('../../product/data/models/productModel');
 const Checkout = require('../data/models/checkoutModel');
-const { userNotifications } = require('../../utils/emailHandler');
-const crypto = require('crypto');
 const { initializePayment } = require('../../utils/paystackHandler');
+const CartService = require('../../cart/services/CartService');
+const { userNotifications } = require('../../utils/emailHandler');
 
 class CheckoutService {
     static async createCheckout(userId, checkoutDetails) {
-        const { products, userDetails, paymentType } = checkoutDetails;
+        if (!userId) {
+            throw new Error('Only logged-in users can perform checkout');
+        }
 
+        const { userDetails, paymentType } = checkoutDetails;
         this.validateCheckoutDetails(userDetails, paymentType);
-        const { totalAmount, productDetails } = await this.calculateTotalAmount(products);
 
-        const serialCode = crypto.randomBytes(8).toString('hex');
+        const cart = await CartService.getCart(userId);
+        if (!cart || cart.items.length === 0) {
+            throw new Error('Cart is empty. Add items to the cart before checkout.');
+        }
+
         if (paymentType === 'online_payment') {
-            return this.handleOnlinePayment(userDetails, totalAmount, serialCode, productDetails);
+            return this.handleOnlinePayment(userDetails, cart.totalAmount, cart.items, userId);
         }
 
         const newCheckout = new Checkout({
-            user: userId || null,
-            products: productDetails,
-            totalAmount,
+            user: userId,
+            products: cart.items,
+            totalAmount: cart.totalAmount,
             userDetails,
             paymentType: 'payment_on_delivery',
-            serialCode,
+            paymentStatus: 'pending',
         });
 
         await newCheckout.save();
+        await CartService.clearCart(userId);
+
         await this.sendNotification(
             userDetails.email,
             'Checkout Successful',
-            `Your checkout with serial code ${serialCode} has been processed successfully.`
+            'Your checkout has been processed successfully. Thank you for shopping with us!'
         );
 
         return newCheckout;
     }
 
-    static async getCheckoutsByUser(userId) {
-        return Checkout.find({ user: userId }).populate('products.product');
-    }
+    static async handleOnlinePayment(userDetails, totalAmount, products, userId) {
+        const amount = parseFloat(totalAmount.toString());
+        if (isNaN(amount) || amount <= 0) {
+            throw new Error('Invalid total amount. Please check your cart.');
+        }
 
-    static async getAllCheckouts() {
-        return Checkout.find({}).populate('products.product');
-    }
+        const newCheckout = new Checkout({
+            user: userId,
+            products,
+            totalAmount: amount,
+            userDetails,
+            paymentType: 'online_payment',
+            paymentStatus: 'pending',
+        });
 
-    static async updateCheckoutStatus(checkoutId, status) {
-        const checkout = await Checkout.findById(checkoutId);
-        if (!checkout) throw new Error('Checkout not found');
-        checkout.status = status;
-        await checkout.save();
-        return checkout;
-    }
+        await newCheckout.save();
 
-    static async deleteCheckout(checkoutId, userId) {
-        const checkout = await Checkout.findOne({ _id: checkoutId, user: userId });
-        if (!checkout) throw new Error('Checkout not found or unauthorized');
-        await checkout.deleteOne();
-        return { message: 'Checkout deleted successfully' };
-    }
 
-    static async getCheckoutBySerialCode(serialCode) {
-        const checkout = await Checkout.findOne({ serialCode }).populate('products.product');
-        if (!checkout) throw new Error('Checkout not found');
-        return checkout;
+        const paymentResponse = await initializePayment(userDetails.email, amount, {
+            reference: newCheckout._id,
+        });
+
+        if (!paymentResponse || !paymentResponse.data.authorization_url) {
+            throw new Error('Failed to initialize payment');
+        }
+
+        await this.sendNotification(
+            userDetails.email,
+            'Complete Your Payment',
+            `Complete your payment using this link: ${paymentResponse.data.authorization_url}`
+        );
+
+        await CartService.clearCart(userId);
+
+        return { checkout: newCheckout, paymentUrl: paymentResponse.data.authorization_url };
     }
 
     static validateCheckoutDetails(userDetails, paymentType) {
-        if (!userDetails || !userDetails.address || !userDetails.phoneNumber) {
-            throw new Error('User details including address and phone number are required');
+        if (!userDetails || !userDetails.address || !userDetails.phoneNumber || !userDetails.email) {
+            throw new Error('User details including address, phone number, and email are required');
         }
         if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
             throw new Error('Invalid payment type');
         }
     }
 
-    static async calculateTotalAmount(products) {
-        let totalAmount = 0;
-        const productDetails = await Promise.all(
-            products.map(async (item) => {
-                const product = await Product.findById(item.product);
-                if (!product) throw new Error(`Product with ID ${item.product} not found`);
-                totalAmount += product.price * item.quantity;
-                return { product: item.product, quantity: item.quantity, size: item.size };
-            })
-        );
-        return { totalAmount, productDetails };
-    }
-
-    static async handleOnlinePayment(userDetails, totalAmount, serialCode, productDetails) {
-        const paymentResponse = await initializePayment(userDetails.email, totalAmount);
-        if (!paymentResponse || !paymentResponse.data.authorization_url) {
-            throw new Error('Failed to initialize payment');
+    static async handlePaymentWebhook(reference, eventData) {
+        const checkout = await Checkout.findById(reference);
+        if (!checkout) {
+            throw new Error('Checkout not found');
         }
 
-        const newCheckout = new Checkout({
-            user: null,
-            products: productDetails,
-            totalAmount,
-            userDetails,
-            paymentType: 'online_payment',
-            serialCode,
-        });
+        if (eventData.status === 'success') {
+            checkout.paymentStatus = 'paid';
+            await checkout.save();
 
-        await newCheckout.save();
-        await this.sendNotification(
-            userDetails.email,
-            'Complete Payment',
-            `Complete payment using the link: ${paymentResponse.data.authorization_url}`
-        );
-
-        return newCheckout;
+            await this.sendNotification(
+                checkout.userDetails.email,
+                'Payment Successful',
+                'Your payment has been successfully completed. Thank you for shopping with us!'
+            );
+        } else {
+            checkout.paymentStatus = 'failed';
+            await checkout.save();
+        }
     }
 
     static async sendNotification(email, subject, message) {
