@@ -2,6 +2,7 @@ const Checkout = require('../data/models/checkoutModel');
 const { initializePayment } = require('../../utils/paystackHandler');
 const CartService = require('../../cart/services/CartService');
 const { userNotifications } = require('../../utils/emailHandler');
+const { io } = require('../../utils/socketHandler');
 
 class CheckoutService {
     static async createCheckout(userId, checkoutDetails) {
@@ -88,6 +89,7 @@ class CheckoutService {
         }
     }
 
+
     static async handlePaymentWebhook(reference, eventData) {
         const checkout = await Checkout.findById(reference);
         if (!checkout) {
@@ -97,6 +99,11 @@ class CheckoutService {
         if (eventData.status === 'success') {
             checkout.paymentStatus = 'paid';
             await checkout.save();
+
+            io.emit('checkoutSuccess', {
+                message: 'A payment was successfully completed.',
+                checkout,
+            });
 
             await this.sendNotification(
                 checkout.userDetails.email,
@@ -108,7 +115,6 @@ class CheckoutService {
             await checkout.save();
         }
     }
-
     static async sendNotification(email, subject, message) {
         await userNotifications(email, subject, message);
     }

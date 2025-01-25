@@ -111,8 +111,9 @@ class AdminAuthService {
     async getUserOverviews(page = 1, limit = 10) {
         const skip = (page - 1) * limit;
         const users = await User.find()
-            .select('firstName lastName role activityLogs createdAt') // Select necessary fields
-            .sort({ createdAt: -1 }) // Sort by newest
+            .select('firstName lastName role activityLogs createdAt')
+            .populate('checkouts')
+            .sort({ createdAt: -1 }) 
             .skip(skip)
             .limit(limit);
 
@@ -122,6 +123,7 @@ class AdminAuthService {
             role: user.role,
             activityLogs: user.activityLogs,
             createdAt: user.createdAt,
+            checkouts: user.checkouts,
         }));
 
         const totalUsers = await User.countDocuments();
@@ -132,6 +134,7 @@ class AdminAuthService {
             currentPage: page,
         };
     }
+
 }
 
 module.exports = new AdminAuthService();

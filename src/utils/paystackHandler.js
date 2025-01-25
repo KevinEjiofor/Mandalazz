@@ -17,7 +17,7 @@ const initializePayment = async (email, amount) => {
     try {
         const response = await axios.post(
             `${PAYSTACK_BASE_URL}/transaction/initialize`,
-            { email, amount: Math.round(amount * 100),reference: options.reference, }, // Amount in kobo
+            { email, amount: Math.round(amount * 100), },
             {
                 headers: {
                     Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,

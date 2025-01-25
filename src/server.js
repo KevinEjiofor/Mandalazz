@@ -11,6 +11,11 @@ const productRoutes = require('./routes/productRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const guestMiddleware = require("./middlewares/guestMiddleware");
+const { initializeWebSocket } = require('./utils/socketHandler');
+const {createServer} = require("node:http");
+
+const server = createServer(app);
+initializeWebSocket(server);
 
 
 app.use(express.json());
