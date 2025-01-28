@@ -1,7 +1,7 @@
-const Notification = require('../models/notificationModel');
+const { io } = require('../../../utils/socketHandler');
 
-await Notification.create({
-    type: 'checkoutSuccess',
-    message: 'A payment was successfully completed.',
-    data: { checkoutId: checkout._id },
+io().emit('adminNotification', {
+    type: 'newCheckout',
+    message: `A new checkout has been created by user ${userId}`,
+    data: newCheckout,
 });

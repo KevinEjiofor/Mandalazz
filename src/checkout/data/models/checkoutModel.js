@@ -55,6 +55,7 @@ const checkoutSchema = new mongoose.Schema({
             required: true,
         },
     },
+
     paymentType: {
         type: String,
         enum: ['payment_on_delivery', 'online_payment'],
@@ -64,6 +65,11 @@ const checkoutSchema = new mongoose.Schema({
         type: String,
         enum: ['pending', 'paid', 'failed'],
         default: 'pending',
+    },
+    paymentReference: {
+        type: String,
+        unique: true,
+        sparse: true,
     },
 }, { timestamps: true });
 

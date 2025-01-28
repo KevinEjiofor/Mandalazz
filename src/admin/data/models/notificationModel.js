@@ -4,13 +4,13 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['checkoutSuccess', 'paymentFailure'], // Example types
+        enum: ['checkoutSuccess', 'paymentFailure'],
     },
     message: {
         type: String,
         required: true,
     },
-    data: mongoose.Schema.Types.Mixed, 
+    data: mongoose.Schema.Types.Mixed,
     isRead: {
         type: Boolean,
         default: false,

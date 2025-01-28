@@ -22,26 +22,25 @@ class CheckoutController {
                 checkout,
             });
         } catch (error) {
-            sendErrorResponse(res, {
-                message: error.message || 'Failed to create checkout.',
-            });
+            sendErrorResponse(res, { message: error.message || 'Failed to create checkout.' });
         }
     }
-
     static async handlePaymentWebhook(req, res) {
         try {
-            const { event, data } = req.body;
-            const reference = data.reference;
 
-            await CheckoutService.handlePaymentWebhook(reference, data);
+            const { data } = req.body;
+            const { reference, status } = data;
 
-            sendSuccessResponse(res, {
-                message: 'Payment webhook handled successfully.',
-            });
+            if (!reference || !status) {
+                throw new Error('Invalid webhook payload: Missing reference or status');
+            }
+
+            await CheckoutService.handlePaymentWebhook(reference, { status });
+
+            sendSuccessResponse(res, { message: 'Payment webhook handled successfully.' });
         } catch (error) {
-            sendErrorResponse(res, {
-                message: error.message || 'Failed to handle payment webhook.',
-            });
+            console.error('Error handling payment webhook:', error.message);
+            sendErrorResponse(res, { message: error.message || 'Failed to handle payment webhook.' });
         }
     }
 
@@ -55,43 +54,7 @@ class CheckoutController {
                 checkouts,
             });
         } catch (error) {
-            sendErrorResponse(res, {
-                message: error.message || 'Failed to retrieve checkouts.',
-            });
-        }
-    }
-
-    static async updateCheckoutStatus(req, res) {
-        try {
-            const { checkoutId } = req.params;
-            const { status } = req.body;
-
-            const updatedCheckout = await CheckoutService.updateCheckoutStatus(checkoutId, status);
-
-            sendSuccessResponse(res, {
-                message: 'Checkout status updated successfully.',
-                checkout: updatedCheckout,
-            });
-        } catch (error) {
-            sendErrorResponse(res, {
-                message: error.message || 'Failed to update checkout status.',
-            });
-        }
-    }
-
-    static async deleteCheckout(req, res) {
-        try {
-            const { id } = req.params;
-
-            await CheckoutService.deleteCheckout(id);
-
-            sendSuccessResponse(res, {
-                message: 'Checkout deleted successfully.',
-            });
-        } catch (error) {
-            sendErrorResponse(res, {
-                message: error.message || 'Failed to delete checkout.',
-            });
+            sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkouts.' });
         }
     }
 }

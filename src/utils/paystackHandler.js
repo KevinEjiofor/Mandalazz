@@ -3,10 +3,7 @@ const axios = require('axios');
 
 const PAYSTACK_BASE_URL = process.env.PAYSTACK_BASE_URL;
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-
-const initializePayment = async (email, amount) => {
-
-
+const initializePayment = async (email, amount, options = {}) => {
     if (!email || typeof email !== 'string' || !email.includes('@')) {
         throw new Error('Invalid email format.');
     }
@@ -17,7 +14,11 @@ const initializePayment = async (email, amount) => {
     try {
         const response = await axios.post(
             `${PAYSTACK_BASE_URL}/transaction/initialize`,
-            { email, amount: Math.round(amount * 100), },
+            {
+                email,
+                amount: Math.round(amount * 100), // Convert amount to kobo
+                reference: options.reference, // Explicitly use the reference passed
+            },
             {
                 headers: {
                     Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -26,12 +27,15 @@ const initializePayment = async (email, amount) => {
             }
         );
 
-        return response.data;
-    } catch (error) {
+        console.log('Paystack Initialization Response:', response.data);
 
+        return response.data; // Return only the data
+    } catch (error) {
+        console.error('Error initializing payment:', error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Payment initialization failed.');
     }
 };
+
 
 const verifyPayment = async (reference) => {
     if (!reference) {
@@ -48,11 +52,10 @@ const verifyPayment = async (reference) => {
             }
         );
 
-        console.log('Verify Payment Response:', response.data);
 
         return response.data;
     } catch (error) {
-        console.error('Error verifying payment:', error.response?.data || error.message);
+
         throw new Error(error.response?.data?.message || 'Failed to verify payment');
     }
 };
