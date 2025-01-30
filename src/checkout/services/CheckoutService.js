@@ -2,7 +2,7 @@ const Checkout = require('../data/models/checkoutModel');
 const { initializePayment } = require('../../utils/paystackHandler');
 const CartService = require('../../cart/services/CartService');
 const { userNotifications } = require('../../utils/emailHandler');
-const { io } = require('../../utils/socketHandler');
+const { getIO } = require('../../utils/socketHandler');
 
 class CheckoutService {
     static async createCheckout(userId, checkoutDetails) {
@@ -27,7 +27,7 @@ class CheckoutService {
             products: cart.items,
             totalAmount: cart.totalAmount,
             userDetails,
-            paymentReference: null, // No reference needed for cash payment
+            paymentReference: null,
             paymentType: 'payment_on_delivery',
             paymentStatus: 'pending',
         });
@@ -40,12 +40,18 @@ class CheckoutService {
             'Checkout Successful',
             'Your checkout has been processed successfully. Thank you for shopping with us!'
         );
+        const socket = getIO();
+        if (socket) {
+            socket.emit('adminNotification', {
+                type: 'paymentStatusUpdate',
+                message: `Payment for checkout ${newCheckout._id} has been ${newCheckout.paymentStatus}.`,
+                data: newCheckout,
+            });
+        } else {
+            console.error('WebSocket not available. Skipping emit.');
+        }
 
-        io.emit('adminNotification', {
-            type: 'newCheckout',
-            message: `A new checkout has been created by user ${userId}`,
-            data: newCheckout,
-        });
+
 
         return newCheckout;
     }
@@ -81,11 +87,11 @@ class CheckoutService {
         }
 
 
-        await userNotifications(
-            userDetails.email,
-            'Complete Your Payment',
-            `Complete your payment using this link: ${paymentResponse.data.authorization_url}`
-        );
+        // await userNotifications(
+        //     userDetails.email,
+        //     'Complete Your Payment',
+        //     `Complete your payment using this link: ${paymentResponse.data.authorization_url}`
+        // );
 
         await CartService.clearCart(userId);
 
@@ -104,18 +110,22 @@ class CheckoutService {
         await checkout.save();
 
 
-        io.emit('adminNotification', {
-            type: 'paymentStatusUpdate',
-            message: `Payment for checkout ${checkout._id} has been ${checkout.paymentStatus}.`,
-            data: checkout,
-        });
+        const socket = getIO();
+            if (socket) {
+                socket.emit('adminNotification', {
+                    type: 'paymentStatusUpdate',
+                    message: `Payment for checkout ${checkout._id} has been ${checkout.paymentStatus}.`,
+                    data: checkout,
+                });
+            } else {
+                console.error('WebSocket not available. Skipping emit.');
+            }
 
-
-        await userNotifications(
-            checkout.userDetails.email,
-            'Payment Update',
-            `Your payment status is now: ${checkout.paymentStatus}`
-        );
+        // await userNotifications(
+        //     checkout.userDetails.email,
+        //     'Payment Update',
+        //     `Your payment status is now: ${checkout.paymentStatus}`
+        // );
     }
 
     static validateCheckoutDetails(userDetails, paymentType) {

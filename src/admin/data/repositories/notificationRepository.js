@@ -1,7 +1,9 @@
-const { io } = require('../../../utils/socketHandler');
+const { getIO } = require('../../../utils/socketHandler');
 
-io().emit('adminNotification', {
+getIO().emit('adminNotification', {
     type: 'newCheckout',
     message: `A new checkout has been created by user ${userId}`,
     data: newCheckout,
+
 });
+console.log(userId)

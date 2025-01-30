@@ -27,9 +27,7 @@ const initializePayment = async (email, amount, options = {}) => {
             }
         );
 
-        console.log('Paystack Initialization Response:', response.data);
-
-        return response.data; // Return only the data
+        return response.data;
     } catch (error) {
         console.error('Error initializing payment:', error.response?.data || error.message);
         throw new Error(error.response?.data?.message || 'Payment initialization failed.');
