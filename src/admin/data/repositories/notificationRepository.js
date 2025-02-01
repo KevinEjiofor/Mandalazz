@@ -6,4 +6,3 @@ getIO().emit('adminNotification', {
     data: newCheckout,
 
 });
-console.log(userId)

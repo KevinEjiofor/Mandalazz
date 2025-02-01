@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const CheckoutStatus = require('../../../config/orderStatus');
+const CheckoutStatus = require('../../../config/checkoutStatus');
 
 const checkoutSchema = new mongoose.Schema({
     user: {

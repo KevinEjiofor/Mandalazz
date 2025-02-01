@@ -57,6 +57,71 @@ class CheckoutController {
             sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkouts.' });
         }
     }
+    static async updatePaymentStatus(req, res) {
+        try {
+            const { checkoutId } = req.params;
+            const { paymentStatus } = req.body;
+
+            const updatedCheckout = await CheckoutService.updatePaymentStatus(checkoutId, paymentStatus);
+
+            sendSuccessResponse(res, {
+                message: 'Payment status updated successfully.',
+                checkout: updatedCheckout,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to update payment status.' });
+        }
+    }
+
+    static async getCheckoutById(req, res) {
+        try {
+            const { checkoutId } = req.params;
+            const checkout = await CheckoutService.getCheckoutById(checkoutId);
+
+            if (!checkout) {
+                return sendErrorResponse(res, { message: 'Checkout not found' }, 404);
+            }
+
+            sendSuccessResponse(res, {
+                message: 'Checkout retrieved successfully.',
+                checkout,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkout.' });
+        }
+    }
+
+    static async cancelCheckout(req, res) {
+        try {
+            const { checkoutId } = req.params;
+            const result = await CheckoutService.cancelCheckout(checkoutId);
+
+            sendSuccessResponse(res, {
+                message: 'Checkout canceled successfully.',
+                checkout: result,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to cancel checkout.' });
+        }
+    }
+
+    static async getCheckoutStatus(req, res) {
+        try {
+            const { checkoutId } = req.params;
+            const checkout = await CheckoutService.getCheckoutById(checkoutId);
+
+            if (!checkout) {
+                return sendErrorResponse(res, { message: 'Checkout not found' }, 404);
+            }
+
+            sendSuccessResponse(res, {
+                message: 'Checkout status retrieved successfully.',
+                status: checkout.paymentStatus,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkout status.' });
+        }
+    }
 }
 
 module.exports = CheckoutController;

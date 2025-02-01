@@ -136,6 +136,65 @@ class CheckoutService {
             throw new Error('Invalid payment type');
         }
     }
+
+    static async updatePaymentStatus(checkoutId, paymentStatus) {
+        if (!['paid', 'failed'].includes(paymentStatus)) {
+            throw new Error('Invalid payment status');
+        }
+
+        const checkout = await Checkout.findById(checkoutId);
+        if (!checkout) {
+            throw new Error('Checkout not found');
+        }
+
+        if (checkout.paymentType !== 'payment_on_delivery') {
+            throw new Error('This order is not Payment on Delivery');
+        }
+
+        if (checkout.paymentStatus === 'paid') {
+            throw new Error('Payment already confirmed');
+        }
+
+
+        checkout.paymentStatus = paymentStatus;
+        await checkout.save();
+
+        const socket = getIO();
+        if (socket) {
+            socket.emit('adminNotification', {
+                type: 'paymentStatusUpdate',
+                message: `Payment status for checkout ${checkout._id} updated to ${paymentStatus}.`,
+                data: checkout,
+            });
+        }
+
+
+        await userNotifications(
+            checkout.userDetails.email,
+            'Payment Status Update',
+            `Your payment status has been updated to: ${paymentStatus}`
+        );
+
+        return checkout;
+    }
+    static async getCheckoutById(checkoutId) {
+        return Checkout.findById(checkoutId).populate('user products.product');
+    }
+
+    static async cancelCheckout(checkoutId) {
+        const checkout = await Checkout.findById(checkoutId);
+        if (!checkout) {
+            throw new Error('Checkout not found');
+        }
+
+        if (checkout.paymentStatus === 'paid') {
+            throw new Error('Cannot cancel a completed checkout');
+        }
+
+        await Checkout.deleteOne({ _id: checkoutId });
+        return checkout;
+    }
+
 }
 
 module.exports = CheckoutService;
