@@ -25,9 +25,9 @@ class CheckoutController {
             sendErrorResponse(res, { message: error.message || 'Failed to create checkout.' });
         }
     }
+
     static async handlePaymentWebhook(req, res) {
         try {
-
             const { data } = req.body;
             const { reference, status } = data;
 
@@ -57,6 +57,7 @@ class CheckoutController {
             sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkouts.' });
         }
     }
+
     static async updatePaymentStatus(req, res) {
         try {
             const { checkoutId } = req.params;
@@ -116,10 +117,40 @@ class CheckoutController {
 
             sendSuccessResponse(res, {
                 message: 'Checkout status retrieved successfully.',
-                status: checkout.paymentStatus,
+                status: checkout.deliveryStatus,
             });
         } catch (error) {
             sendErrorResponse(res, { message: error.message || 'Failed to retrieve checkout status.' });
+        }
+    }
+
+    // New API: Update the delivery status (Admin only)
+    static async updateDeliveryStatus(req, res) {
+        try {
+            const { checkoutId } = req.params;
+            const { deliveryStatus } = req.body;
+            const updatedCheckout = await CheckoutService.updateDeliveryStatus(checkoutId, deliveryStatus);
+
+            sendSuccessResponse(res, {
+                message: 'Delivery status updated successfully.',
+                checkout: updatedCheckout,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to update delivery status.' });
+        }
+    }
+
+    // New API: Search checkouts (Admin only)
+    static async searchCheckouts(req, res) {
+        try {
+            const queryParams = req.query;
+            const checkouts = await CheckoutService.searchCheckouts(queryParams);
+            sendSuccessResponse(res, {
+                message: 'Search completed successfully.',
+                checkouts,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to search checkouts.' });
         }
     }
 }

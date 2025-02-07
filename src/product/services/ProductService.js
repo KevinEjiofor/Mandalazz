@@ -70,20 +70,31 @@ class ProductService {
 
     async fetchAllProducts(category) {
         try {
-
             const filter = category ? { category } : {};
             const products = await Product.find(filter);
-
-            if (!products || products.length === 0) {
-                throw new Error('No products found');
-            }
-
             return products;
         } catch (error) {
-            console.error('Error fetching products:', error); // Debug log
             throw new Error(error.message);
         }
     }
+
+
+    // async fetchAllProducts(category) {
+    //     try {
+    //
+    //         const filter = category ? { category } : {};
+    //         const products = await Product.find(filter);
+    //
+    //         if (!products || products.length === 0) {
+    //             throw new Error('No products found');
+    //         }
+    //
+    //         return products;
+    //     } catch (error) {
+    //         console.error('Error fetching products:', error); // Debug log
+    //         throw new Error(error.message);
+    //     }
+    // }
 
 
     async searchProducts(query) {

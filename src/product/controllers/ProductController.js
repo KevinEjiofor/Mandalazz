@@ -3,7 +3,8 @@ const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondH
 
 class ProductController {
     validateCategory(category) {
-        if (category && !['woman', 'man', 'unisex'].includes(category)) {
+        const validCategories = ['woman', 'man', 'unisex', 'skincare', 'electronics'];
+        if (category && !validCategories.includes(category)) {
             throw new Error('Invalid category');
         }
     }

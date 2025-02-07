@@ -70,10 +70,11 @@ const productSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Category is required'],
             enum: {
-                values: ['woman', 'man', 'unisex'],
-                message: 'Category must be "woman", "man", or "unisex"',
+                values: ['woman', 'man', 'unisex', 'skincare', 'electronics'],
+                message: 'Invalid category',
             },
         },
+
         tags: {
             type: [String],
             default: [],

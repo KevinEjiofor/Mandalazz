@@ -35,7 +35,8 @@ const checkoutSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.Decimal128,
         required: true,
     },
-    status: {
+
+    deliveryStatus: {
         type: String,
         enum: Object.values(CheckoutStatus),
         default: CheckoutStatus.PENDING,
@@ -55,7 +56,6 @@ const checkoutSchema = new mongoose.Schema({
             required: true,
         },
     },
-
     paymentType: {
         type: String,
         enum: ['payment_on_delivery', 'online_payment'],
