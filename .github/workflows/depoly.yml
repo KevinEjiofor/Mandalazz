@@ -1,0 +1,31 @@
+name: Deploy to Docker
+
+on:
+  push:
+    branches:
+      - main  # Runs when code is pushed to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build and Tag Docker Image
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:latest .
+
+      - name: Push Docker Image to DockerHub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:latest
+
+      # - name: Deploy to Railway
+      #   uses: railwayapp/cli-action@1.0.8
+      #   with:
+      #     service: ${{ secrets.RAILWAY_SERVICE_ID }}
+      #     token: ${{ secrets.RAILWAY_API_TOKEN }}
+      #     command: railway up
+
