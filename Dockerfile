@@ -16,3 +16,5 @@ EXPOSE 3030
 
 # Start the app
 CMD ["node", "src/server.js"]
+
+ENV MONGO_URI=${MONGO_URI}
