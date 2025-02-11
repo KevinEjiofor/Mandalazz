@@ -1,4 +1,4 @@
-name: Deploy to Docker
+name: Deploy to DockerHub and Railway
 
 on:
   push:
@@ -13,19 +13,58 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Log in to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_PASSWORD" ]; then
+            echo "🚨 ERROR: DockerHub credentials are missing!"
+            exit 1
+          fi
+          echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
       - name: Build and Tag Docker Image
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:latest .
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}  # Uses Git SHA for versioning
+        run: |
+          docker build -t $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG .
+          docker tag $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG $DOCKERHUB_USERNAME/mandelazz:latest
 
       - name: Push Docker Image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:latest
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG
+          docker push $DOCKERHUB_USERNAME/mandelazz:latest
 
-      # - name: Deploy to Railway
-      #   uses: railwayapp/cli-action@1.0.8
-      #   with:
-      #     service: ${{ secrets.RAILWAY_SERVICE_ID }}
-      #     token: ${{ secrets.RAILWAY_API_TOKEN }}
-      #     command: railway up
+      - name: Deploy to Railway
+        env:
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+          SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          if [ -z "$RAILWAY_API_TOKEN" ] || [ -z "$SERVICE_ID" ]; then
+            echo "🚨 ERROR: Railway API token or Service ID is missing!"
+            exit 1
+          fi
+
+          curl -X POST "https://backboard.railway.app/graphql/v2" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+            -d '{
+              "query": "mutation Deploy($service: String!, $image: String!) {
+                deployService(serviceId: $service, image: $image) { id }
+              }",
+              "variables": {
+                "service": "'"$SERVICE_ID"'",
+                "image": "'"$DOCKERHUB_USERNAME"'/mandelazz:'"$IMAGE_TAG"'"
+              }
+            }'
 
