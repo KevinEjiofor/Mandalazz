@@ -45,12 +45,12 @@ app.use('/api/product', productRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/cart', cartRoutes);
 
-// Handle 404 errors
+
 app.use((req, res, next) => {
     res.status(404).json({ error: 'Route not found' });
 });
 
-// Start the server on the correct port
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
