@@ -63,7 +63,7 @@ jobs:
               }",
               "variables": {
                 "service": "'"$SERVICE_ID"'",
-                "image": "'"$DOCKERHUB_USERNAME"'/mandelazz:'"$IMAGE_TAG"'"
+                "image": "'"$DOCKERHUB_USERNAME"'/mandalazz:'"$IMAGE_TAG"'"
               }
             }'
   # run-tests:
