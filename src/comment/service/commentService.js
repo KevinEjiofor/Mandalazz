@@ -1,3 +1,4 @@
+const Comment = require('../data/model/commentModel');
 const Product = require('../../product/data/models/productModel');
 
 class CommentService {
@@ -5,13 +6,13 @@ class CommentService {
         const product = await Product.findById(productId);
         if (!product) throw new Error('Product not found');
 
-        const comment = {
+        const comment = new Comment({
             user: userId,
             name,
             comment: commentText,
-        };
+        });
 
-        product.comments.push(comment);
+        product.comments.push(comment);  // Assuming `comments` is an array of subdocuments
         await product.save();
         return comment;
     }
@@ -55,4 +56,4 @@ class CommentService {
     }
 }
 
-module.exports = new CommentService();
+module.exports = CommentService;

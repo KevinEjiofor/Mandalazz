@@ -9,6 +9,7 @@ const userRoutes = require('./routes/userAuthRoutes');
 const productRoutes = require('./routes/productRoutes');
 const checkoutRoutes = require('./routes/checkoutRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const comment = require('./routes/commentRoutes')
 const guestMiddleware = require("./middlewares/guestMiddleware");
 const { initializeWebSocket } = require('./utils/socketHandler');
 const { createServer } = require("http");
@@ -44,6 +45,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/comment', comment);
 
 
 app.use((req, res, next) => {
@@ -51,9 +53,9 @@ app.use((req, res, next) => {
 });
 
 
-const PORT = process.env.SOCKET_PORT;
+const PORT = process.env.PORT;
 server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    // console.log(`🚀 Server running on port ${PORT}`);
 });
-console.log("🔍 MONGO_URI:", process.env.MONGO_URI);
+// console.log("🔍 MONGO_URI:", process.env.MONGO_URI);
 

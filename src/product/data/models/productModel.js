@@ -70,11 +70,10 @@ const productSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Category is required'],
             enum: {
-                values: ['woman', 'man', 'unisex', 'skincare', 'electronics'],
+                values: ['woman', 'man', 'unisex', 'skincare', 'electronics', 'accessories', 'home'],
                 message: 'Invalid category',
             },
         },
-
         tags: {
             type: [String],
             default: [],
@@ -92,6 +91,31 @@ const productSchema = new mongoose.Schema(
             type: String,
             ref: 'Admin',
             required: [true, 'Admin name is required'],
+        },
+        comments: {
+            type: [mongoose.Schema.Types.ObjectId],
+            ref: 'Comment',
+            default: [],
+        },
+        rating: {
+            type: Number,
+            default: 0,
+            min: [0, 'Rating cannot be less than 0'],
+            max: [5, 'Rating cannot be more than 5'],
+        },
+        reviewCount: {
+            type: Number,
+            default: 0,
+            min: [0, 'Review count cannot be less than 0'],
+        },
+        brand: {
+            type: String,
+            trim: true,
+            default: null,
+        },
+        dateAdded: {
+            type: Date,
+            default: Date.now,
         },
     },
     { timestamps: true }
