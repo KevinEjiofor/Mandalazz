@@ -1,7 +1,7 @@
 const io = require('socket.io-client');
 
-
-const socket = io('http://localhost:8383');
+// Connect to the WebSocket server
+const socket = io('http://localhost:3030');
 
 // Join the adminRoom
 socket.emit('joinRoom', 'adminRoom');
@@ -9,6 +9,7 @@ socket.emit('joinRoom', 'adminRoom');
 // Listen for admin notifications
 socket.on('adminNotification', (data) => {
     console.log('📢 Admin Notification Received:', data);
+    // Log or handle the received notification as needed
 });
 
 socket.on('connect', () => {

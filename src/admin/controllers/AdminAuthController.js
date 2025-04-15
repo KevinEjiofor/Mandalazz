@@ -1,5 +1,6 @@
 const AdminAuthService = require('../services/AdminAuthService');
 const { sendErrorResponse, sendSuccessResponse } = require('../../utils/respondHandler');
+const {getIO} = require("../../utils/socketHandler");
 
 class AdminController {
     async login(req, res) {
@@ -69,7 +70,22 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
+    async sendNotification(req, res) {
+        try {
+            const { room, message } = req.body;
 
+            if (!room || !message) {
+                return sendErrorResponse(res, 'Room and message are required');
+            }
+
+            const io = getIO();
+            io.to(room).emit('adminNotification', { message });
+
+            sendSuccessResponse(res, { message: 'Notification sent successfully' });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
 
 }
 
