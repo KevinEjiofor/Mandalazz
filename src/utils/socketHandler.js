@@ -1,40 +1,33 @@
-const { Server } = require('socket.io');
-
 let io;
 
-const initializeWebSocket = (server) => {
-    if (!io) {
-        io = new Server(server, {
-            cors: {
-                origin: '*',
-                methods: ['GET', 'POST'],
-            },
+function initializeWebSocket(server) {
+    const { Server } = require('socket.io');
+    io = new Server(server, {
+        cors: {
+            origin: '*',
+            methods: ['GET', 'POST']
+        }
+    });
+
+    io.on('connection', (socket) => {
+        console.log('🟢 A client connected:', socket.id);
+
+        socket.on('joinRoom', (room) => {
+            socket.join(room);
+            console.log(`🔗 Socket ${socket.id} joined room: ${room}`);
         });
 
-        io.on('connection', (socket) => {
-            console.log(`✅ User connected: ${socket.id}`);
-
-            socket.on('joinRoom', (room) => {
-                console.log(`ℹ️ Socket ${socket.id} joined room: ${room}`);
-                socket.join(room);
-            });
-
-            socket.on('disconnect', () => {
-                console.log(`❌ User disconnected: ${socket.id}`);
-            });
+        socket.on('disconnect', () => {
+            console.log('🔴 Client disconnected:', socket.id);
         });
+    });
+}
 
-        console.log('✅ WebSocket initialized');
-    }
-
-    return io;
-};
-
-const getIO = () => {
+function getIO() {
     if (!io) {
-        throw new Error('WebSocket not initialized');
+        throw new Error('Socket.io not initialized!');
     }
     return io;
-};
+}
 
 module.exports = { initializeWebSocket, getIO };

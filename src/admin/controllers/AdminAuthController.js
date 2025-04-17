@@ -78,7 +78,7 @@ class AdminController {
                 return sendErrorResponse(res, 'Room and message are required');
             }
 
-            const io = getIO();
+            const io = getIO(); // ✅ make sure getIO is properly setup
             io.to(room).emit('adminNotification', { message });
 
             sendSuccessResponse(res, { message: 'Notification sent successfully' });
@@ -86,6 +86,7 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
+
 
 }
 

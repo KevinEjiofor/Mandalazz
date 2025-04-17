@@ -2,6 +2,7 @@ const Comment = require('../data/model/commentModel');
 const Product = require('../../product/data/models/productModel');
 const User = require('../../user/data/models/userModel');
 const { getIO } = require("../../utils/socketHandler");
+const NotificationService = require('../../notification/service/NotificationService');
 
 class CommentService {
     static async addComment(productId, userId, commentText) {
@@ -25,17 +26,43 @@ class CommentService {
 
         const socket = getIO();
         if (socket) {
+            // Emit to all users viewing the product
             socket.emit('commentAdded', {
                 productId,
                 comment: {
-
                     firstName: comment.firstName,
                     lastName: comment.lastName,
                     comment: comment.comment,
                     createdAt: comment.createdAt,
                 },
             });
+
+            // Send to admin room for notifications
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'comment_added',
+                message: `${user.firstName} ${user.lastName} commented on product ${product.name}`,
+                data: {
+                    productId,
+                    commentId: comment._id,
+                    userId,
+                    productName: product.name,
+                    comment: commentText,
+                }
+            });
         }
+
+        // Create a persistent notification for admin
+        await NotificationService.addNotification(
+            'comment_added',
+            `${user.firstName} ${user.lastName} commented on product ${product.name}`,
+            {
+                productId,
+                commentId: comment._id,
+                userId,
+                productName: product.name,
+                comment: commentText,
+            }
+        );
 
         return {
             firstName: user.firstName,
@@ -56,6 +83,9 @@ class CommentService {
             throw new Error('Unauthorized');
         }
 
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
+
         await Comment.findByIdAndDelete(commentId);
 
         product.comments = product.comments.filter(
@@ -73,6 +103,30 @@ class CommentService {
                     lastName: comment.lastName
                 }
             });
+
+            // Notify admin about deletion
+            if (!isAdmin) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_deleted',
+                    message: `${user.firstName} ${user.lastName} deleted a comment on product ${product.name}`,
+                    data: {
+                        productId,
+                        commentId,
+                        productName: product.name,
+                    }
+                });
+
+                // Create persistent notification
+                await NotificationService.addNotification(
+                    'comment_deleted',
+                    `${user.firstName} ${user.lastName} deleted a comment on product ${product.name}`,
+                    {
+                        productId,
+                        commentId,
+                        productName: product.name,
+                    }
+                );
+            }
         }
 
         return {
@@ -114,6 +168,9 @@ class CommentService {
         const comment = await Comment.findById(commentId);
         if (!comment) throw new Error('Comment not found');
 
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
+
         const TEN_MINUTES = 10 * 60 * 1000;
         const now = Date.now();
         const createdAt = new Date(comment.createdAt).getTime();
@@ -138,6 +195,32 @@ class CommentService {
                     updatedAt: comment.updatedAt || new Date(),
                 }
             });
+
+            // Notify admin about the update (if not by admin)
+            if (!isAdmin) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_updated',
+                    message: `${user.firstName} ${user.lastName} updated a comment on product ${product.name}`,
+                    data: {
+                        productId,
+                        commentId,
+                        productName: product.name,
+                        updatedComment: updatedText
+                    }
+                });
+
+                // Create persistent notification
+                await NotificationService.addNotification(
+                    'comment_updated',
+                    `${user.firstName} ${user.lastName} updated a comment on product ${product.name}`,
+                    {
+                        productId,
+                        commentId,
+                        productName: product.name,
+                        updatedComment: updatedText
+                    }
+                );
+            }
         }
 
         return {
@@ -151,6 +234,12 @@ class CommentService {
     static async toggleLike(commentId, userId) {
         const comment = await Comment.findById(commentId);
         if (!comment) throw new Error('Comment not found');
+
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
+
+        const product = await Product.findOne({ comments: commentId });
+        if (!product) throw new Error('Associated product not found');
 
         const alreadyLiked = comment.likes.includes(userId);
         if (alreadyLiked) {
@@ -169,6 +258,32 @@ class CommentService {
                 liked: !alreadyLiked,
                 totalLikes: comment.likes.length,
             });
+
+            // Only notify admin about new likes (not unlikes)
+            if (!alreadyLiked) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_liked',
+                    message: `${user.firstName} ${user.lastName} liked a comment on product ${product.name}`,
+                    data: {
+                        productId: product._id,
+                        commentId,
+                        userId,
+                        productName: product.name,
+                    }
+                });
+
+                // Create persistent notification for likes
+                await NotificationService.addNotification(
+                    'comment_liked',
+                    `${user.firstName} ${user.lastName} liked a comment on product ${product.name}`,
+                    {
+                        productId: product._id,
+                        commentId,
+                        userId,
+                        productName: product.name,
+                    }
+                );
+            }
         }
 
         return { liked: !alreadyLiked, totalLikes: comment.likes.length };
@@ -178,11 +293,18 @@ class CommentService {
         const comment = await Comment.findById(commentId);
         if (!comment) throw new Error('Comment not found');
 
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
+
+        const product = await Product.findOne({ comments: commentId });
+        if (!product) throw new Error('Associated product not found');
+
         const existingReactionIndex = comment.reactions.findIndex(
             r => r.users.includes(userId)
         );
 
         let message;
+        let isNewReaction = false;
 
         if (existingReactionIndex !== -1) {
             const existing = comment.reactions[existingReactionIndex];
@@ -207,6 +329,7 @@ class CommentService {
                 }
 
                 message = 'Reaction updated successfully';
+                isNewReaction = true;
             }
         } else {
             let newReaction = comment.reactions.find(r => r.emoji === emoji);
@@ -216,6 +339,7 @@ class CommentService {
                 newReaction.users.push(userId);
             }
             message = 'Reaction added successfully';
+            isNewReaction = true;
         }
 
         await comment.save();
@@ -229,6 +353,34 @@ class CommentService {
                     count: r.users.length
                 }))
             });
+
+            // Only notify admin about new reactions (not reaction removals)
+            if (isNewReaction) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_reacted',
+                    message: `${user.firstName} ${user.lastName} reacted with ${emoji} on a comment on product ${product.name}`,
+                    data: {
+                        productId: product._id,
+                        commentId,
+                        userId,
+                        emoji,
+                        productName: product.name,
+                    }
+                });
+
+                // Create persistent notification
+                await NotificationService.addNotification(
+                    'comment_reacted',
+                    `${user.firstName} ${user.lastName} reacted with ${emoji} on a comment on product ${product.name}`,
+                    {
+                        productId: product._id,
+                        commentId,
+                        userId,
+                        emoji,
+                        productName: product.name,
+                    }
+                );
+            }
         }
 
         return {

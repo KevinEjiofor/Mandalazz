@@ -7,7 +7,6 @@ const isUser = require('../middlewares/isUser');
 // Add a comment
 router.post('/:id/comment', auth, isUser, commentController.addComment);
 
-
 // Delete a comment (user or admin)
 router.delete('/:productId/comment/:commentId', auth, isUser,commentController.deleteComment);
 
@@ -16,7 +15,6 @@ router.get('/:id/comments', commentController.getComments);
 
 // Update a comment
 router.put('/:productId/comment/:commentId', auth, isUser,commentController.updateComment);
-
 
 // Like / Unlike a comment
 router.post('/:commentId/like', auth, isUser, commentController.likeComment);

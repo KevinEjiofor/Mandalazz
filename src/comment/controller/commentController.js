@@ -12,14 +12,14 @@ class CommentController {
             }
 
             const comment = await commentService.addComment(
-                req.params.id,
-                req.user.id,
+                // req.params.id,
+                // req.user.id,
                 commentText
             );
 
             sendSuccessResponse(res, 'Comment added successfully', comment);
         } catch (error) {
-            console.error('Error adding comment:', error);
+
             sendErrorResponse(res, error.message, 400);
         }
     }
@@ -42,7 +42,7 @@ class CommentController {
 
             sendSuccessResponse(res, 'Comment deleted successfully', result);
         } catch (error) {
-            console.error('Error deleting comment:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
@@ -58,7 +58,7 @@ class CommentController {
             const comments = await commentService.getComments(productId);
             sendSuccessResponse(res, 'Comments fetched successfully', comments);
         } catch (error) {
-            console.error('Error fetching comments:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
@@ -83,7 +83,7 @@ class CommentController {
 
             sendSuccessResponse(res, 'Comment updated successfully', updated);
         } catch (error) {
-            console.error('Error updating comment:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
@@ -96,7 +96,7 @@ class CommentController {
             const result = await commentService.toggleLike(commentId, userId);
             sendSuccessResponse(res, 'Comment liked/unliked successfully', result);
         } catch (error) {
-            console.error('Error liking comment:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
@@ -114,7 +114,7 @@ class CommentController {
             const result = await commentService.reactWithEmoji(commentId, userId, emoji);
             sendSuccessResponse(res, 'Reaction added successfully', result);
         } catch (error) {
-            console.error('Error reacting to comment:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
@@ -128,7 +128,7 @@ class CommentController {
 
             sendSuccessResponse(res, 'Reaction removed successfully', result);
         } catch (error) {
-            console.error('Error removing reaction:', error);
+
             sendErrorResponse(res, error.message, 500);
         }
     }
