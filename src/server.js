@@ -14,6 +14,7 @@ const comment = require('./routes/commentRoutes')
 const ratingRoutes = require('./routes/ratingRoutes');
 const guestMiddleware = require("./middlewares/guestMiddleware");
 const notificationRoutes = require('./routes/notificationRoutes');
+const { scheduleEmailVerificationReminders } = require('./utils/scheduledTasks')
 const { initializeWebSocket } = require('./utils/socketHandler');
 const { createServer } = require("http");
 
@@ -25,6 +26,8 @@ initializeWebSocket(server);
 app.use(express.json());
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
+
+scheduleEmailVerificationReminders();
 
 app.use(session({
     secret: process.env.SESSION_SECRET,

@@ -18,43 +18,59 @@ class ProductController {
 
     async addProduct(req, res) {
         try {
-            const { name, price, description, category, variations } = req.body;
-            this.validateCategory(category);
+            const { name, price, description, category, brand, variations } = req.body;
 
-            const formattedVariations = await this.validateAndProcessVariations(variations, req.files);
+
+            const formattedVariations = JSON.parse(variations);
 
             const result = await productService.addProduct(
-                { name, price, description, category },
+                { name, price, description, brand, category },
                 req.admin,
                 formattedVariations,
                 req.files
             );
 
-            sendSuccessResponse(res, result.message, result.product);
+            sendSuccessResponse(res, "Product created successfully", result);
         } catch (error) {
+            console.error("Error in addProduct Controller:", error);
             sendErrorResponse(res, error.message);
         }
     }
 
+
     async updateProduct(req, res) {
         try {
-            const { name, price, description, category, variations } = req.body;
+            const { name, price, description, category, brand, variations } = req.body;
+
+
             this.validateCategory(category);
+
 
             const formattedVariations = await this.validateAndProcessVariations(variations, req.files);
 
+            const updateData = {
+                name,
+                price,
+                description,
+                brand,
+                category,
+            };
+
+
             const result = await productService.updateProduct(
                 req.params.id,
-                { name, price, description, category },
+                updateData,
                 formattedVariations,
                 req.files
             );
 
             sendSuccessResponse(res, result.message, result.product);
         } catch (error) {
-            sendErrorResponse(res, error.message);
+            console.error("Error in updateProduct:", error);
+            sendErrorResponse(res, error.message || "Failed to update product");
         }
     }
+
 
     async deleteProduct(req, res) {
         try {

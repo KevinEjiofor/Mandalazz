@@ -1,15 +1,21 @@
 const Checkout = require('../data/models/checkoutModel');
+const User = require('../../user/data/models/userModel');
 const { initializePayment } = require('../../utils/paystackHandler');
 const CartService = require('../../cart/services/CartService');
 const { userNotifications } = require('../../utils/emailHandler');
 const { getIO } = require('../../utils/socketHandler');
 const CheckoutStatus = require('../../config/checkoutStatus');
+const NotificationService = require('../../notification/service/NotificationService');
 
 class CheckoutService {
     static async createCheckout(userId, checkoutDetails) {
         if (!userId) {
             throw new Error('Only logged-in users can perform checkout');
         }
+
+        // Get user information to include in notifications
+        const user = await User.findById(userId);
+        if (!user) throw new Error('User not found');
 
         const { userDetails, paymentType } = checkoutDetails;
         this.validateCheckoutDetails(userDetails, paymentType);
@@ -19,16 +25,14 @@ class CheckoutService {
             throw new Error('Cart is empty. Add items to the cart before checkout.');
         }
 
-
         const estimatedDeliveryDate = new Date();
         estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 7);
-
 
         let cancellationDeadline = new Date();
         cancellationDeadline.setDate(cancellationDeadline.getDate() + (paymentType === 'online_payment' ? 1 : 2));
 
         if (paymentType === 'online_payment') {
-            return this.handleOnlinePayment(userDetails, cart.totalAmount, cart.items, userId, estimatedDeliveryDate, cancellationDeadline);
+            return this.handleOnlinePayment(userDetails, cart.totalAmount, cart.items, userId, estimatedDeliveryDate, cancellationDeadline, user);
         }
 
         const newCheckout = new Checkout({
@@ -47,7 +51,6 @@ class CheckoutService {
         await newCheckout.save();
         await CartService.clearCart(userId);
 
-
         await userNotifications(
             userDetails.email,
             'Checkout Successful',
@@ -56,19 +59,42 @@ class CheckoutService {
 
         const socket = getIO();
         if (socket) {
-            socket.emit('adminNotification', {
-                type: 'paymentStatusUpdate',
-                message: `Payment for checkout ${newCheckout._id} has been ${newCheckout.paymentStatus}.`,
-                data: newCheckout,
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'checkout_created',
+                message: `${user.firstName} ${user.lastName} created a new checkout with payment on delivery`,
+                data: {
+                    checkoutId: newCheckout._id,
+                    userId,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    paymentType: newCheckout.paymentType,
+                    paymentStatus: newCheckout.paymentStatus,
+                    totalAmount: newCheckout.totalAmount
+                },
             });
         } else {
             console.error('WebSocket not available. Skipping emit.');
         }
 
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'checkout_created',
+            `${user.firstName} ${user.lastName} created a new checkout with payment on delivery`,
+            {
+                checkoutId: newCheckout._id,
+                // userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                paymentType: newCheckout.paymentType,
+                paymentStatus: newCheckout.paymentStatus,
+                totalAmount: newCheckout.totalAmount
+            }
+        );
+
         return newCheckout;
     }
 
-    static async handleOnlinePayment(userDetails, totalAmount, products, userId, estimatedDeliveryDate, cancellationDeadline) {
+    static async handleOnlinePayment(userDetails, totalAmount, products, userId, estimatedDeliveryDate, cancellationDeadline, user) {
         const amount = parseFloat(totalAmount.toString());
         if (isNaN(amount) || amount <= 0) {
             throw new Error('Invalid total amount. Please check your cart.');
@@ -77,7 +103,7 @@ class CheckoutService {
         const paymentReference = `ref_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
 
         const newCheckout = new Checkout({
-            user: userId,
+            // user: userId,
             products,
             totalAmount: amount,
             userDetails,
@@ -99,13 +125,41 @@ class CheckoutService {
             throw new Error('Failed to initialize payment');
         }
 
-        // await userNotifications(
-        //     userDetails.email,
-        //     'Complete Your Payment',
-        //     `Complete your payment using this link: ${paymentResponse.data.authorization_url}`
-        // );
-
         await CartService.clearCart(userId);
+
+        const socket = getIO();
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'checkout_created',
+                message: `${user.firstName} ${user.lastName} created a new checkout with online payment`,
+                data: {
+                    checkoutId: newCheckout._id,
+                    // userId,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    paymentType: newCheckout.paymentType,
+                    paymentStatus: newCheckout.paymentStatus,
+                    totalAmount: newCheckout.totalAmount,
+                    paymentReference
+                },
+            });
+        }
+
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'checkout_created',
+            `${user.firstName} ${user.lastName} created a new checkout with online payment`,
+            {
+                checkoutId: newCheckout._id,
+                // userId,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                paymentType: newCheckout.paymentType,
+                paymentStatus: newCheckout.paymentStatus,
+                totalAmount: newCheckout.totalAmount,
+                paymentReference
+            }
+        );
 
         return { checkout: newCheckout, paymentUrl: paymentResponse.data.authorization_url };
     }
@@ -120,17 +174,50 @@ class CheckoutService {
         checkout.paymentStatus = eventData.status === 'success' ? 'paid' : 'failed';
         await checkout.save();
 
+        // Find the user to include their name in notifications
+        const user = await User.findById(checkout.user);
+        if (!user) {
+            console.error(`User not found for checkout: ${checkout._id}`);
+        }
+
+        const firstName = user ? user.firstName : 'Unknown';
+        const lastName = user ? user.lastName : 'User';
+
         const socket = getIO();
         if (socket) {
-            socket.emit('adminNotification', {
-                type: 'paymentStatusUpdate',
-                message: `Payment for checkout ${checkout._id} has been ${checkout.paymentStatus}.`,
-                data: checkout,
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'payment_status_update',
+                message: `${firstName} ${lastName}'s payment for checkout ${checkout._id} has been ${checkout.paymentStatus}`,
+                data: {
+                    checkoutId: checkout._id,
+                    userId: checkout.user,
+                    firstName,
+                    lastName,
+                    paymentType: checkout.paymentType,
+                    paymentStatus: checkout.paymentStatus,
+                    totalAmount: checkout.totalAmount,
+                    paymentReference: checkout.paymentReference
+                },
             });
         } else {
             console.error('WebSocket not available. Skipping emit.');
         }
 
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'payment_status_update',
+            `${firstName} ${lastName}'s payment for checkout ${checkout._id} has been ${checkout.paymentStatus}`,
+            {
+                checkoutId: checkout._id,
+                userId: checkout.user,
+                firstName,
+                lastName,
+                paymentType: checkout.paymentType,
+                paymentStatus: checkout.paymentStatus,
+                totalAmount: checkout.totalAmount,
+                paymentReference: checkout.paymentReference
+            }
+        );
 
         if (checkout.paymentStatus === 'paid') {
             await userNotifications(
@@ -168,29 +255,51 @@ class CheckoutService {
             throw new Error('Payment already confirmed');
         }
 
+        // Find the user to include their name in notifications
+        const user = await User.findById(checkout.user);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         checkout.paymentStatus = paymentStatus;
         await checkout.save();
 
-        // const socket = getIO();
-        // if (socket) {
-        //     socket.emit('adminNotification', {
-        //         type: 'paymentStatusUpdate',
-        //         message: `Payment status for checkout ${checkout._id} updated to ${paymentStatus}.`,
-        //         data: checkout,
-        //     });
-        // }
-        //
-        // await userNotifications(
-        //     checkout.userDetails.email,
-        //     'Payment Status Update',
-        //     `Your payment status has been updated to: ${paymentStatus}`
-        // );
+        const socket = getIO();
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'payment_status_update',
+                message: `${user.firstName} ${user.lastName}'s payment for checkout ${checkout._id} has been ${checkout.paymentStatus}`,
+                data: {
+                    checkoutId: checkout._id,
+                    // userId: checkout.user,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    paymentType: checkout.paymentType,
+                    paymentStatus: checkout.paymentStatus,
+                    totalAmount: checkout.totalAmount
+                },
+            });
+        }
+
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'payment_status_update',
+            `${user.firstName} ${user.lastName}'s payment for checkout ${checkout._id} has been ${checkout.paymentStatus}`,
+            {
+                checkoutId: checkout._id,
+                // userId: checkout.user,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                paymentType: checkout.paymentType,
+                paymentStatus: checkout.paymentStatus,
+                totalAmount: checkout.totalAmount
+            }
+        );
 
         return checkout;
     }
 
     static async updateDeliveryStatus(checkoutId, newDeliveryStatus) {
-
         if (!Object.values(CheckoutStatus).includes(newDeliveryStatus)) {
             throw new Error('Invalid delivery status');
         }
@@ -200,14 +309,52 @@ class CheckoutService {
             throw new Error('Checkout not found');
         }
 
+        // Find the user to include their name in notifications
+        const user = await User.findById(checkout.user);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         checkout.deliveryStatus = newDeliveryStatus;
         await checkout.save();
 
-        // Optionally notify the user of the update.
+        // Notify the user of the update.
         await userNotifications(
             checkout.userDetails.email,
             'Delivery Status Update',
             `Your order delivery status has been updated to: ${newDeliveryStatus}`
+        );
+
+        const socket = getIO();
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'delivery_status_update',
+                message: `${user.firstName} ${user.lastName}'s order delivery status updated to ${newDeliveryStatus}`,
+                data: {
+                    checkoutId: checkout._id,
+                    // userId: checkout.user,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    deliveryStatus: checkout.deliveryStatus,
+                    paymentType: checkout.paymentType,
+                    paymentStatus: checkout.paymentStatus
+                },
+            });
+        }
+
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'delivery_status_update',
+            `${user.firstName} ${user.lastName}'s order delivery status updated to ${newDeliveryStatus}`,
+            {
+                checkoutId: checkout._id,
+                // userId: checkout.user,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                deliveryStatus: checkout.deliveryStatus,
+                paymentType: checkout.paymentType,
+                paymentStatus: checkout.paymentStatus
+            }
         );
 
         return checkout;
@@ -232,7 +379,44 @@ class CheckoutService {
             throw new Error('Cannot cancel a completed checkout');
         }
 
+        // Find the user to include their name in notifications
+        const user = await User.findById(checkout.user);
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         await Checkout.deleteOne({ _id: checkoutId });
+
+        const socket = getIO();
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'checkout_cancelled',
+                message: `${user.firstName} ${user.lastName} cancelled their checkout ${checkoutId}`,
+                data: {
+                    checkoutId,
+                    // userId: checkout.user,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    paymentType: checkout.paymentType,
+                    totalAmount: checkout.totalAmount
+                },
+            });
+        }
+
+        // Create persistent notification
+        await NotificationService.addNotification(
+            'checkout_cancelled',
+            `${user.firstName} ${user.lastName} cancelled their checkout ${checkoutId}`,
+            {
+                checkoutId,
+                userId: checkout.user,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                paymentType: checkout.paymentType,
+                totalAmount: checkout.totalAmount
+            }
+        );
+
         return checkout;
     }
 
@@ -241,7 +425,7 @@ class CheckoutService {
     }
 
     static async searchCheckouts(queryParams) {
-        // Build a dynamic query object based on provided query parameters.
+
         const query = {};
         if (queryParams.email) {
             query['userDetails.email'] = { $regex: queryParams.email, $options: 'i' };

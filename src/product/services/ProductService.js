@@ -79,24 +79,6 @@ class ProductService {
     }
 
 
-    // async fetchAllProducts(category) {
-    //     try {
-    //
-    //         const filter = category ? { category } : {};
-    //         const products = await Product.find(filter);
-    //
-    //         if (!products || products.length === 0) {
-    //             throw new Error('No products found');
-    //         }
-    //
-    //         return products;
-    //     } catch (error) {
-    //         console.error('Error fetching products:', error); // Debug log
-    //         throw new Error(error.message);
-    //     }
-    // }
-
-
     async searchProducts(query) {
         try {
             const products = await Product.find(
@@ -153,23 +135,7 @@ class ProductService {
             throw new Error(`Error processing variations: ${error.message}`);
         }
     }
-    // async formatVariations(variations, folder = 'products') {
-    //     return Promise.all(
-    //         variations.map(async (variation) => {
-    //             const uploadPromises = variation.images.map((path) =>
-    //                 cloudinary.uploader.upload(path, { folder })
-    //             );
-    //             const results = await Promise.all(uploadPromises);
-    //             const imageUrls = results.map((result) => result.secure_url);
-    //
-    //             return {
-    //                 color: variation.color,
-    //                 sizes: variation.sizes,
-    //                 images: imageUrls,
-    //             };
-    //         })
-    //     );
-    // }
+
 
 
 

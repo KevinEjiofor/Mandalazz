@@ -26,28 +26,109 @@ class UserService {
         const token = jwt.sign(
             { id: user._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: '5h' }
         );
 
         return token;
     }
-
     static async createUserAccount(firstName, lastName, email, password) {
         await checkIfUserExists(email);
-
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Generate verification token
+        const verificationToken = generateResetToken();
+
         const newUser = await User.create({
             firstName,
             lastName,
             email,
             password: hashedPassword,
+            emailVerificationToken: verificationToken,
+            emailVerificationExpire: Date.now() + 30 * 60 * 1000, // 30 minutes
         });
 
-        const subject = 'Welcome to Our Platform';
-        const text = `Hi ${firstName},\n\nYour account has been created successfully.\n\nThank you!`;
-        await sendEmail(email, subject, text);
+        // Send welcome email first
+        const welcomeSubject = 'Welcome to Our Platform';
+        const welcomeText = `Hi ${firstName},\n\nWelcome to our platform! Your account has been created successfully.\n\nPlease verify your email using the verification code: ${verificationToken}\n\nThis code will expire in 30 minutes.\n\nThank you!`;
 
+        await sendEmail(email, welcomeSubject, welcomeText);
         return newUser;
+    }
+    // static async createUserAccount(firstName, lastName, email, password) {
+    //     await checkIfUserExists(email);
+    //
+    //     const hashedPassword = await bcrypt.hash(password, 10);
+    //     const newUser = await User.create({
+    //         firstName,
+    //         lastName,
+    //         email,
+    //         password: hashedPassword,
+    //     });
+    //
+    //     const subject = 'Welcome to Our Platform';
+    //     const text = `Hi ${firstName},\n\nYour account has been created successfully.\n\nThank you!`;
+    //     await sendEmail(email, subject, text);
+    //
+    //     return newUser;
+    // }
+
+    static async verifyEmail(email, token) {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.emailVerified) {
+            throw new Error('Email already verified');
+        }
+
+        if (user.emailVerificationToken !== token || user.emailVerificationExpire < Date.now()) {
+            throw new Error('Invalid or expired verification token');
+        }
+
+        user.emailVerified = true;
+        user.emailVerificationToken = null;
+        user.emailVerificationExpire = null;
+        await user.save();
+
+        return user;
+    }
+
+    static async resendVerificationEmail(email) {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (user.emailVerified) {
+            throw new Error('Email already verified');
+        }
+
+        const verificationToken = generateResetToken();
+        user.emailVerificationToken = verificationToken;
+        user.emailVerificationExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
+        await user.save();
+
+        const subject = 'Email Verification';
+        const text = `Hi ${user.firstName},\n\nYour email verification code is: ${verificationToken}\n\nThis code will expire in 30 minutes.\n\nThank you!`;
+
+        await sendEmail(email, subject, text);
+        return true;
+    }
+
+    static async checkEmailVerificationStatus(userId) {
+        const user = await User.findById(userId);
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        return {
+            verified: user.emailVerified,
+            email: user.email
+        };
     }
 
     static async forgotPassword(email) {

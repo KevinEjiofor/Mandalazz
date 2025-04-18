@@ -47,7 +47,19 @@ const userSchema = new mongoose.Schema({
             action: { type: String, required: true },
             timestamp: { type: Date, default: Date.now }
         }
-    ]
+    ],
+    emailVerified: {
+        type: Boolean,
+        default: false,
+    },
+    emailVerificationToken: {
+        type: String,
+        default: null
+    },
+    emailVerificationExpire: {
+        type: Date,
+        default: null
+    }
 
 
 }, { timestamps: true });
