@@ -1,15 +1,11 @@
 const Admin = require('../models/adminModel');
-
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
     try {
-        const dburl= process.env.MONGO_URI
+        const dburl = process.env.MONGO_URI;
 
-        await mongoose.connect(dburl, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        await mongoose.connect(dburl);
         console.log('MongoDB connected');
     } catch (error) {
         console.error('Error connecting to MongoDB', error);
@@ -19,11 +15,11 @@ const connectDB = async () => {
 
 const findAdminByName = async (name) => {
     return Admin.findOne({name});
-}
-const findAdminByEmail = async (email) => {
-    return  Admin.findOne({email});
 };
 
+const findAdminByEmail = async (email) => {
+    return Admin.findOne({email});
+};
 
 const createAdmin = async (name, email, password) => {
     const newAdmin = new Admin({ name, email, password });
@@ -31,4 +27,4 @@ const createAdmin = async (name, email, password) => {
     return newAdmin;
 };
 
-module.exports = { findAdminByEmail, createAdmin,  findAdminByName,connectDB };
+module.exports = { findAdminByEmail, createAdmin, findAdminByName, connectDB };
