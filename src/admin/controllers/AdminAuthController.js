@@ -70,22 +70,7 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
-    async sendNotification(req, res) {
-        try {
-            const { room, message } = req.body;
 
-            if (!room || !message) {
-                return sendErrorResponse(res, 'Room and message are required');
-            }
-
-            const io = getIO(); // ✅ make sure getIO is properly setup
-            io.to(room).emit('adminNotification', { message });
-
-            sendSuccessResponse(res, { message: 'Notification sent successfully' });
-        } catch (error) {
-            sendErrorResponse(res, error.message);
-        }
-    }
 
 
 }

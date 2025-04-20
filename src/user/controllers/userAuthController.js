@@ -1,18 +1,27 @@
 const UserService = require('../services/UserService');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
-
 class UserController {
     static async createUser(req, res) {
         try {
             const { firstName, lastName, email, password } = req.body;
-            const user = await UserService.createUserAccount(firstName, lastName, email, password);
-
+            await UserService.createUserAccount(firstName, lastName, email, password);
             sendSuccessResponse(res, { message: 'User created successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
+
+    static async loginUser(req, res) {
+        try {
+            const { email, password, guestId } = req.body;
+            const token = await UserService.authenticateUser(email, password, guestId);
+            sendSuccessResponse(res, { token });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
     static async verifyEmail(req, res) {
         try {
             const { email, token } = req.body;
@@ -35,19 +44,9 @@ class UserController {
 
     static async checkEmailVerificationStatus(req, res) {
         try {
-            const userId = req.user.id; // Assuming you have middleware that sets req.user
-            const status = await UserService.checkEmailVerificationStatus(userId);
-            sendSuccessResponse(res, status);
-        } catch (error) {
-            sendErrorResponse(res, error.message);
-        }
-    }
-    static async loginUser(req, res) {
-        try {
-            const { email, password } = req.body;
-
-            const token = await UserService.authenticateUser(email, password, req.guestId);
-            sendSuccessResponse(res, { token });
+            const { userId } = req.user;
+            const result = await UserService.checkEmailVerificationStatus(userId);
+            sendSuccessResponse(res, result);
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -67,7 +66,7 @@ class UserController {
         try {
             const { email, token } = req.body;
             await UserService.validateResetToken(email, token);
-            sendSuccessResponse(res, { message: 'Token is valid' });
+            sendSuccessResponse(res, { message: 'Token validated successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -77,16 +76,16 @@ class UserController {
         try {
             const { email, token, newPassword } = req.body;
             await UserService.resetPassword(email, token, newPassword);
-            sendSuccessResponse(res, { message: 'Password reset successful' });
+            sendSuccessResponse(res, { message: 'Password reset successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
 
-    static logout(req, res) {
+    static async logout(req, res) {
         try {
 
-            sendSuccessResponse(res, { message: 'Logout successful' });
+            sendSuccessResponse(res, { message: 'Logged out successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }

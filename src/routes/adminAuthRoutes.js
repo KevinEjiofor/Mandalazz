@@ -13,7 +13,7 @@ router.post('/validate-reset-pin',  AdminController.validateResetToken);
 router.post('/reset-password',  AdminController.resetPassword);
 router.post('/logout', AdminController.logout);
 router.get('/users/overview',authMiddleware,isAdmin, AdminController.getUserOverviews);
-router.post('/send-notification', authMiddleware, isAdmin, AdminController.sendNotification);
+
 
 
 module.exports = router;
