@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
-const { connectDB } = require('./admin/data/repositories/adminRepository');
+const  connectDB = require('./config/DataBaseConfig');
 const adminRoutes = require('./routes/adminAuthRoutes');
 const userRoutes = require('./routes/userAuthRoutes');
 const productRoutes = require('./routes/productRoutes');
