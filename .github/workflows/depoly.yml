@@ -69,3 +69,4 @@ jobs:
           restart-policy: Always
           registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
           registry-password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          registry-server: index.docker.io
