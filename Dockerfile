@@ -18,7 +18,7 @@
 #CMD ["node", "src/server.js"]
 
 # Use official Node.js runtime as base image
-FROM node:18-alpine
+FROM node:20
 
 # Set working directory in container
 WORKDIR /app
