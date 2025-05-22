@@ -33,7 +33,7 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/kevinejiofor/mandelazz:latest
+        tags: kevinejiofor/mandelazz:latest
     
     - name: Login to Azure
       uses: azure/login@v1
