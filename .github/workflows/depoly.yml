@@ -45,7 +45,7 @@ jobs:
       with:
         resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
         dns-name-label: mandelazz-backend-${{ github.run_number }}
-        image: ${{ secrets.DOCKER_USERNAME }}/mandelazz-backend:latest
+        image: kevinejiofor/mandelazz:latest
         name: mandelazz-container
         location: 'East US'
         cpu: 1
