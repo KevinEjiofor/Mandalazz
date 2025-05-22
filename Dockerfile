@@ -1,22 +1,3 @@
-#FROM node:20
-#
-#WORKDIR /app
-#
-## Copy package files first for efficient caching
-#COPY package.json package-lock.json ./
-#
-## Install only production dependencies
-#RUN npm install --production
-#
-## Copy the rest of the application
-#COPY . .
-#
-## Expose the application port
-#EXPOSE 3030
-#
-## Start the app
-#CMD ["node", "src/server.js"]
-
 # Use official Node.js runtime as base image
 FROM node:20
 
@@ -35,12 +16,14 @@ COPY . .
 # Expose port
 EXPOSE 3030
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
+# Create non-root user for security (Debian-compatible)
+RUN groupadd -g 1001 nodejs && \
+    useradd -m -u 1001 -g nodejs nodejs
 
 # Change ownership of the app directory
 RUN chown -R nodejs:nodejs /app
+
+# Use non-root user
 USER nodejs
 
 # Start the application
