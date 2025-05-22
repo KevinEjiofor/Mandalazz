@@ -12,8 +12,8 @@ RUN npm install --production
 COPY . .
 
 # Set environment variables BEFORE CMD
-ENV NODE_ENV=production
-ENV MONGO_URI=${MONGO_URI}
+#ENV NODE_ENV=production
+#ENV MONGO_URI=${MONGO_URI}
 
 # Expose the application port
 EXPOSE 3030
