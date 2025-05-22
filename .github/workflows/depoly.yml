@@ -34,6 +34,18 @@ jobs:
           context: .
           push: true
           tags: kevinejiofor/mandelazz:latest
+          build-args: |
+            NODE_ENV=production
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+            EMAIL_USER=${{ secrets.EMAIL_USER }}
+            EMAIL_PASS=${{ secrets.EMAIL_PASS }}
+            PAYSTACK_BASE_URL=https://api.paystack.co
+            CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+            CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+            CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+            PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY }}
 
       - name: Login to Azure
         uses: azure/login@v1
@@ -51,17 +63,6 @@ jobs:
           cpu: 1
           memory: 1.5
           ports: '3030'
-          environment-variables: |
-            NODE_ENV=${{ secrets.NODE_ENV || 'production' }}
-            MONGO_URI=${{ secrets.MONGO_URI || 'mongodb://localhost:27017/default' }}
-            JWT_SECRET=${{ secrets.JWT_SECRET || 'gdgfghdhdhdhdhdggdtetreghrehgwehiuewiujqwbdshsdhhdsbsdhghsddhsghgcbeggdagsgsaghasghdgdqwedrftgbvcxzsa' }}
-            SESSION_SECRET=${{ secrets.SESSION_SECRET || 'fdkjfdhbsdbhewbdsjlhuyfrtdjyuiokmlnnhjhbbnmjkkhewijewhwehbdvcvcdsvvcwjwejbkewjnwbeweeqwddxcccccxv' }}
-            EMAIL_USER=${{ secrets.EMAIL_USER || 'ejioforkelvin@gmail.com' }}
-            EMAIL_PASS=${{ secrets.EMAIL_PASS || 'pbmg uiqf ogky gwus' }}
-            PORT=3030
-            SOCKET_PORT=3030
-            PAYSTACK_BASE_URL=${{ secrets.PAYSTACK_BASE_URL || 'https://api.paystack.co' }}
-            CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME || 'deop6nsbr' }}
-            CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY || '529847672862236' }}
-            CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET || 'ai8yfbUHCWFG2tdI_hO577wLC_0' }}
-            PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY || 'sk_test_eb68af8c15c1b62f52fdaad721ff213202369c08' }}
+
+          # environment-variables are NOT needed here
+          # because env vars are baked into the Docker image via build args
