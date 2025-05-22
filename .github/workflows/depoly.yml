@@ -1,92 +1,68 @@
-name: Deploy to DockerHub and Azure
+name: Deploy to Azure Container Instances
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  DOCKER_IMAGE_NAME: mandelazz-backend
+  AZURE_CONTAINER_GROUP: mandelazz-container
+  AZURE_RESOURCE_GROUP: mandelazz-rg
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Cache node modules
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to DockerHub
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-        run: echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-
-      - name: Build and push Docker image
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          IMAGE_TAG: ${{ github.sha }}
-          MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: |
-          docker build \
-            --build-arg MONGO_URI="$MONGO_URI" \
-            --cache-from=type=local,src=/tmp/.buildx-cache \
-            --cache-to=type=local,dest=/tmp/.buildx-cache-new,mode=max \
-            -t $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG .
-          docker push $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG
-          docker tag $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG $DOCKERHUB_USERNAME/mandelazz:latest
-          docker push $DOCKERHUB_USERNAME/mandelazz:latest
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-  deploy-to-azure:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-
-    steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ secrets.AZURE_APP_NAME }}
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:${{ github.sha }}
-
-      - name: Configure App Settings
-        run: |
-          az webapp config appsettings set \
-            --name ${{ secrets.AZURE_APP_NAME }} \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --settings \
-              MONGO_URI='${{ secrets.MONGO_URI }}' \
-              JWT_SECRET='${{ secrets.JWT_SECRET }}' \
-              SESSION_SECRET='${{ secrets.SESSION_SECRET }}' \
-              EMAIL_USER='${{ secrets.EMAIL_USER }}' \
-              EMAIL_PASS='${{ secrets.EMAIL_PASS }}' \
-              PORT='3030' \
-              SOCKET_PORT='${{ secrets.SOCKET_PORT }}' \
-              PAYSTACK_BASE_URL='${{ secrets.PAYSTACK_BASE_URL }}' \
-              NODE_ENV='production' \
-              CLOUDINARY_CLOUD_NAME='${{ secrets.CLOUDINARY_CLOUD_NAME }}' \
-              CLOUDINARY_API_KEY='${{ secrets.CLOUDINARY_API_KEY }}' \
-              CLOUDINARY_API_SECRET='${{ secrets.CLOUDINARY_API_SECRET }}' \
-              PAYSTACK_SECRET_KEY='${{ secrets.PAYSTACK_SECRET_KEY }}'
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+    
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Deploy to Azure Container Instances
+      uses: azure/aci-deploy@v1
+      with:
+        resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
+        dns-name-label: mandelazz-backend-${{ github.run_number }}
+        image: ${{ secrets.DOCKER_USERNAME }}/mandelazz-backend:latest
+        name: mandelazz-container
+        location: 'East US'
+        cpu: 1
+        memory: 1.5
+        ports: '3030'
+        environment-variables: |
+          NODE_ENV=${{ secrets.NODE_ENV }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          EMAIL_USER=${{ secrets.EMAIL_USER }}
+          EMAIL_PASS=${{ secrets.EMAIL_PASS }}
+          CLIENT_URL=${{ secrets.CLIENT_URL }}
+          PORT=3030
+          SOCKET_PORT=3030
+          PAYSTACK_BASE_URL=${{ secrets.PAYSTACK_BASE_URL }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY }}
