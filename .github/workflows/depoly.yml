@@ -51,7 +51,7 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-          
+
       - name: Deploy to Azure Container Instances
         uses: azure/aci-deploy@v1
         with:
@@ -66,8 +66,7 @@ jobs:
           ip-address: Public
           os-type: Linux
           protocol: TCP
-          restart-policy: Always]
+          restart-policy: Always
           registry-login-server: index.docker.io
           registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
           registry-password: ${{ secrets.DOCKERHUB_PASSWORD }}
-          
