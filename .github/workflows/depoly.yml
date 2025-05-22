@@ -63,6 +63,9 @@ jobs:
           cpu: 1
           memory: 1.5
           ports: '3030'
-
-          # environment-variables are NOT needed here
-          # because env vars are baked into the Docker image via build args
+          ip-address: Public
+          os-type: Linux
+          protocol: TCP
+          restart-policy: Always
+          registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          registry-password: ${{ secrets.DOCKERHUB_PASSWORD }}
