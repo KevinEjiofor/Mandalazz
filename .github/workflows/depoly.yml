@@ -51,4 +51,5 @@ jobs:
             --dns-name-label mandelazz-api-label \
             --ports 80 443 \
             --location $AZURE_LOCATION \
-            --restart-policy OnFailure
+            --restart-policy OnFailure \
+            --os-type Linux
