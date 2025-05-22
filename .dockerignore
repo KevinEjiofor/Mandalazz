@@ -6,3 +6,6 @@ Dockerfile
 .gitignore
 .env
 uploads/*
+.nyc_output
+coverage
+.env.local
