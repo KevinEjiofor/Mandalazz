@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm install
         
       - name: Set up Docker Buildx
@@ -29,8 +29,9 @@ jobs:
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           IMAGE_TAG: ${{ github.sha }}
+          MONGO_URI: ${{ secrets.MONGO_URI }}
         run: |
-          docker build -t $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG .
+          docker build --build-arg MONGO_URI="$MONGO_URI" -t $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG .
           docker tag $DOCKERHUB_USERNAME/mandelazz:$IMAGE_TAG $DOCKERHUB_USERNAME/mandelazz:latest
           
       - name: Push Docker Image to DockerHub
@@ -45,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     steps:
-      - name: Login to Azure
+      - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -55,3 +56,23 @@ jobs:
         with:
           app-name: ${{ secrets.AZURE_APP_NAME }}
           images: ${{ secrets.DOCKERHUB_USERNAME }}/mandelazz:${{ github.sha }}
+          
+      - name: Set App Settings on Azure
+        run: |
+          az webapp config appsettings set \
+            --name ${{ secrets.AZURE_APP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --settings \
+            MONGO_URI='${{ secrets.MONGO_URI }}' \
+            JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+            SESSION_SECRET='${{ secrets.SESSION_SECRET }}' \
+            EMAIL_USER='${{ secrets.EMAIL_USER }}' \
+            EMAIL_PASS='${{ secrets.EMAIL_PASS }}' \
+            PORT='3030' \
+            SOCKET_PORT='${{ secrets.SOCKET_PORT }}' \
+            PAYSTACK_BASE_URL='${{ secrets.PAYSTACK_BASE_URL }}' \
+            NODE_ENV='production' \
+            CLOUDINARY_CLOUD_NAME='${{ secrets.CLOUDINARY_CLOUD_NAME }}' \
+            CLOUDINARY_API_KEY='${{ secrets.CLOUDINARY_API_KEY }}' \
+            CLOUDINARY_API_SECRET='${{ secrets.CLOUDINARY_API_SECRET }}' \
+            PAYSTACK_SECRET_KEY='${{ secrets.PAYSTACK_SECRET_KEY }}'
