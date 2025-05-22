@@ -58,7 +58,6 @@ jobs:
           SESSION_SECRET=${{ secrets.SESSION_SECRET }}
           EMAIL_USER=${{ secrets.EMAIL_USER }}
           EMAIL_PASS=${{ secrets.EMAIL_PASS }}
-          CLIENT_URL=${{ secrets.CLIENT_URL }}
           PORT=3030
           SOCKET_PORT=3030
           PAYSTACK_BASE_URL=${{ secrets.PAYSTACK_BASE_URL }}
@@ -66,3 +65,4 @@ jobs:
           CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
           PAYSTACK_SECRET_KEY=${{ secrets.PAYSTACK_SECRET_KEY }}
+
