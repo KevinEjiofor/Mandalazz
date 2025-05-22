@@ -52,4 +52,6 @@ jobs:
             --ports 80 443 \
             --location $AZURE_LOCATION \
             --restart-policy OnFailure \
-            --os-type Linux
+            --os-type Linux \
+            --cpu 1 \
+            --memory 1.5
