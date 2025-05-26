@@ -1,16 +1,10 @@
 const express = require('express');
 const CartController = require('../cart/controller/CartController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const guestMiddleware = require('../middlewares/guestMiddleware');
+const optionalAuthMiddleware = require('../middlewares/optionalAuthMiddleware')
 
 const router = express.Router();
 
-const optionalAuthMiddleware = (req, res, next) => {
-    if (req.headers.authorization) {
-        return authMiddleware(req, res, next);
-    }
-    guestMiddleware(req, res, next);
-};
+
 
 router.post('/add', optionalAuthMiddleware, CartController.addToCart);
 router.get('/', optionalAuthMiddleware, CartController.getCart);

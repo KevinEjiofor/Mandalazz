@@ -6,6 +6,7 @@ const { checkIfUserExists } = require('../../utils/validation');
 const { sendEmail } = require('../../utils/emailHandler');
 const { generateResetToken } = require('../../utils/tokenGenerator');
 const CartService = require("../../cart/services/CartService");
+const  RecentViewService = require("../../recentView/services/RecentViewService")
 
 class UserService {
 
@@ -21,7 +22,9 @@ class UserService {
         }
 
 
-        await this.handleUserCart(user._id, guestId);
+        await this.handleUserSessionData(user._id, guestId);
+
+        delete req.session.guestId;
 
         const token = jwt.sign(
             { id: user._id, role: user.role },
@@ -54,23 +57,6 @@ class UserService {
         await sendEmail(email, welcomeSubject, welcomeText);
         return newUser;
     }
-    // static async createUserAccount(firstName, lastName, email, password) {
-    //     await checkIfUserExists(email);
-    //
-    //     const hashedPassword = await bcrypt.hash(password, 10);
-    //     const newUser = await User.create({
-    //         firstName,
-    //         lastName,
-    //         email,
-    //         password: hashedPassword,
-    //     });
-    //
-    //     const subject = 'Welcome to Our Platform';
-    //     const text = `Hi ${firstName},\n\nYour account has been created successfully.\n\nThank you!`;
-    //     await sendEmail(email, subject, text);
-    //
-    //     return newUser;
-    // }
 
     static async verifyEmail(email, token) {
         const user = await User.findOne({ email });
@@ -130,24 +116,30 @@ class UserService {
             email: user.email
         };
     }
-
     static async forgotPassword(email) {
         const user = await User.findOne({ email });
         if (!user) {
             throw new Error('No user found with this email');
         }
 
+
+        user.resetPasswordPin = undefined;
+        user.resetPasswordExpire = undefined;
+
+
         const resetPin = generateResetToken();
         user.resetPasswordPin = resetPin;
-        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // expires in 10 mins
         await user.save();
 
         const subject = 'Password Reset PIN';
-        const text = `Hi ${user.firstName},\n\nYour password reset PIN is ${resetPin}. It will expire in 10 minutes.\n\nThank you.`;
+        const text = `Hi ${user.firstName},\n\nYour password reset PIN is ${resetPin}. It will expire in 10 minutes.\n\nIf you did not request this, please ignore this message.\n\nThank you.`;
+
         await sendEmail(email, subject, text);
 
         return resetPin;
     }
+
 
     static async validateResetToken(email, token) {
         const user = await User.findOne({ email });
@@ -171,11 +163,21 @@ class UserService {
 
         return user;
     }
-    static async handleUserCart(userId, guestId) {
+
+    static async handleUserSessionData(userId, guestId) {
         if (guestId) {
+
             await CartService.mergeGuestCartWithUserCart(guestId, userId);
+
+
+            await RecentViewService.mergeGuestRecentViewsWithUser(guestId, userId);
         }
     }
+    // static async handleUserCart(userId, guestId) {
+    //     if (guestId) {
+    //         await CartService.mergeGuestCartWithUserCart(guestId, userId);
+    //     }
+    // }
 
     static async getUserByEmail(email) {
         try {

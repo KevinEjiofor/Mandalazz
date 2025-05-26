@@ -47,25 +47,46 @@ class AdminAuthService {
         return newAdmin;
     }
 
-
-
     async forgotPassword(email) {
         const admin = await findAdminByEmail(email);
         if (!admin) {
             throw new Error('Admin not found with this email');
         }
 
+        // Invalidate old token
+        admin.resetPasswordToken = undefined;
+        admin.resetPasswordExpire = undefined;
+
         const resetToken = generateResetToken();
         admin.resetPasswordToken = resetToken;
-        admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes expiration
+        admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 mins
         await admin.save();
 
         const subject = 'Password Reset Token';
-        const text = `Hi ${admin.name},\n\nYour password reset token is ${resetToken}.\n\nIt will expire in 10 minutes.\n\nThank you!`;
+        const text = `Hi ${admin.name},\n\nYour new password reset token is: ${resetToken}\n\nIt will expire in 10 minutes.\n\nThank you!`;
         await userNotifications(email, subject, text);
 
         return resetToken;
     }
+
+
+    // async forgotPassword(email) {
+    //     const admin = await findAdminByEmail(email);
+    //     if (!admin) {
+    //         throw new Error('Admin not found with this email');
+    //     }
+    //
+    //     const resetToken = generateResetToken();
+    //     admin.resetPasswordToken = resetToken;
+    //     admin.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes expiration
+    //     await admin.save();
+    //
+    //     const subject = 'Password Reset Token';
+    //     const text = `Hi ${admin.name},\n\nYour password reset token is ${resetToken}.\n\nIt will expire in 10 minutes.\n\nThank you!`;
+    //     await userNotifications(email, subject, text);
+    //
+    //     return resetToken;
+    // }
 
 
     async validateResetToken(email, token) {
