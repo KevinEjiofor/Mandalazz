@@ -16,11 +16,18 @@ class UserController {
         try {
             const { email, password, guestId } = req.body;
             const token = await UserService.authenticateUser(email, password, guestId);
+
+            // Now you can safely delete guestId from session here
+            if (req.session) {
+                delete req.session.guestId;
+            }
+
             sendSuccessResponse(res, { token });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
+
 
     static async verifyEmail(req, res) {
         try {

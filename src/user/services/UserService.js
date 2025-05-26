@@ -21,10 +21,7 @@ class UserService {
             throw new Error('Invalid email or password');
         }
 
-
         await this.handleUserSessionData(user._id, guestId);
-
-        delete req.session.guestId;
 
         const token = jwt.sign(
             { id: user._id, role: user.role },
@@ -34,6 +31,7 @@ class UserService {
 
         return token;
     }
+
     static async createUserAccount(firstName, lastName, email, password) {
         await checkIfUserExists(email);
         const hashedPassword = await bcrypt.hash(password, 10);
