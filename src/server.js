@@ -61,7 +61,7 @@ app.use(session({
         collectionName: 'sessions'
     }),
     cookie: {
-        secure: false, // change to true if using HTTPS in production
+        secure: true, // change to true if using HTTPS in production
         httpOnly: true,
         sameSite: 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
