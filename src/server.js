@@ -83,6 +83,11 @@ app.use('/api/rate', ratingRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/recentview', recentViewRoutes);
 
+// ✅ Root Route — to avoid 404 on base domain
+app.get('/', (req, res) => {
+    res.send('🚀 Mandelazz API is running');
+});
+
 // 404 Handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Route not found' });
