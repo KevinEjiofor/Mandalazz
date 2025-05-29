@@ -12,7 +12,6 @@ class FavoriteController {
 
             const favorite = await favoriteService.addToFavorites(req.user.id, productId);
 
-
             sendSuccessResponse(res, 'Added to favorites', {
                 productId: favorite.product
             });
@@ -46,12 +45,9 @@ class FavoriteController {
         try {
             const favorites = await favoriteService.getUserFavorites(req.user.id);
 
+            const result = favorites.map(fav => fav.product); // Full product details
 
-            const filtered = favorites.map(fav => ({
-                productId: fav.product
-            }));
-
-            sendSuccessResponse(res, 'Favorites fetched successfully', filtered);
+            sendSuccessResponse(res, 'Favorites fetched successfully', result);
         } catch (error) {
             console.error('Error fetching favorites:', error);
             sendErrorResponse(res, error.message, 500);

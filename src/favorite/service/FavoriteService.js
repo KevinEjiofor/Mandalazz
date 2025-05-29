@@ -1,8 +1,7 @@
 const favoriteRepository = require('../data/repositories/FavoriteRepository');
 
 class FavoriteService {
-     async addToFavorites(userId, productId) {
-
+    async addToFavorites(userId, productId) {
         const existing = await favoriteRepository.findOne(userId, productId);
         if (existing) {
             throw new Error('Product is already in favorites');
@@ -10,11 +9,11 @@ class FavoriteService {
         return await favoriteRepository.createFavorite(userId, productId);
     }
 
-   async removeFromFavorites(userId, productId) {
+    async removeFromFavorites(userId, productId) {
         return await favoriteRepository.deleteFavorite(userId, productId);
     }
 
-   async getUserFavorites(userId) {
+    async getUserFavorites(userId) {
         return await favoriteRepository.findFavoritesByUser(userId);
     }
 }
