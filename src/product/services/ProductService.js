@@ -40,7 +40,6 @@ class ProductService {
         }
     }
 
-
     async deleteProduct(productId) {
         try {
             const product = await Product.findById(productId);
@@ -68,33 +67,149 @@ class ProductService {
         }
     }
 
-    async fetchAllProducts(category) {
+    async fetchAllProducts(category, sortBy, page = 1, limit = 20) {
         try {
-            const filter = category ? { category } : {};
-            const products = await Product.find(filter);
-            return products;
+            const filter = category ? { category, isActive: true } : { isActive: true };
+
+            // Calculate skip for pagination
+            const skip = (page - 1) * limit;
+
+            // Build sort object
+            const sortOptions = this.buildSortOptions(sortBy);
+
+            const products = await Product.find(filter)
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(parseInt(limit));
+
+            // Get total count for pagination
+            const totalProducts = await Product.countDocuments(filter);
+            const totalPages = Math.ceil(totalProducts / limit);
+
+            return {
+                products,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages,
+                    totalProducts,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            };
         } catch (error) {
             throw new Error(error.message);
         }
     }
 
+    buildSortOptions(sortBy) {
+        const sortOptions = {};
 
-    async searchProducts(query) {
+        switch (sortBy) {
+            case 'newest':
+                sortOptions.createdAt = -1; // Newest first
+                break;
+            case 'oldest':
+                sortOptions.createdAt = 1; // Oldest first
+                break;
+            case 'price_high_to_low':
+                sortOptions.price = -1; // Highest price first
+                break;
+            case 'price_low_to_high':
+                sortOptions.price = 1; // Lowest price first
+                break;
+            case 'rating_high_to_low':
+                sortOptions.rating = -1; // Highest rating first
+                sortOptions.reviewCount = -1; // More reviews as secondary sort
+                break;
+            case 'rating_low_to_high':
+                sortOptions.rating = 1; // Lowest rating first
+                break;
+            case 'popularity':
+                // Sort by review count (more reviews = more popular) and rating
+                sortOptions.reviewCount = -1;
+                sortOptions.rating = -1;
+                break;
+            case 'name_a_to_z':
+                sortOptions.name = 1; // Alphabetical A-Z
+                break;
+            case 'name_z_to_a':
+                sortOptions.name = -1; // Alphabetical Z-A
+                break;
+            default:
+                // Default sort by newest
+                sortOptions.createdAt = -1;
+                break;
+        }
+
+        return sortOptions;
+    }
+
+    async searchProducts(query, sortBy, category, page = 1, limit = 20) {
         try {
-            const products = await Product.find(
-                { $text: { $search: query } },
-                { score: { $meta: 'textScore' } }
-            ).sort({ score: { $meta: 'textScore' } });
+            // Build search filter
+            const searchFilter = {
+                $text: { $search: query },
+                isActive: true
+            };
 
-            if (products.length === 0) {
-                return { message: 'Sorry, no products match your search.' };
+            // Add category filter if provided
+            if (category) {
+                searchFilter.category = category;
             }
 
-            return products;
+            // Calculate skip for pagination
+            const skip = (page - 1) * limit;
+
+            // Build sort options
+            let sortOptions;
+            if (sortBy) {
+                sortOptions = this.buildSortOptions(sortBy);
+            } else {
+                // For search, default to relevance score
+                sortOptions = { score: { $meta: 'textScore' } };
+            }
+
+            const products = await Product.find(
+                searchFilter,
+                { score: { $meta: 'textScore' } }
+            )
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(parseInt(limit));
+
+            if (products.length === 0) {
+                return {
+                    message: 'Sorry, no products match your search.',
+                    products: [],
+                    pagination: {
+                        currentPage: parseInt(page),
+                        totalPages: 0,
+                        totalProducts: 0,
+                        hasNextPage: false,
+                        hasPrevPage: false
+                    }
+                };
+            }
+
+            // Get total count for pagination
+            const totalProducts = await Product.countDocuments(searchFilter);
+            const totalPages = Math.ceil(totalProducts / limit);
+
+            return {
+                products,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages,
+                    totalProducts,
+                    hasNextPage: page < totalPages,
+                    hasPrevPage: page > 1
+                }
+            };
         } catch (error) {
             throw new Error(error.message);
         }
     }
+
     async processVariations(variationsData, files, folder = 'products') {
         try {
             const parsedVariations =
@@ -135,10 +250,6 @@ class ProductService {
             throw new Error(`Error processing variations: ${error.message}`);
         }
     }
-
-
-
-
 }
 
 module.exports = new ProductService();
