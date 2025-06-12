@@ -1,21 +1,45 @@
-const Notification = require('../data/model/notificationModel');
+const NotificationRepository = require('../data/repositories/NotificationRepository');
 
 class NotificationService {
+
     static async addNotification(type, message, data) {
-        const notification = new Notification({ type, message, data });
-        return await notification.save();
+        return await NotificationRepository.create({ type, message, data });
+    }
+
+    static async createNotificationWithAction(type, message, data, action = null, userId = null) {
+        return await NotificationRepository.create({ type, message, data, action, userId });
     }
 
     static async getAllNotifications() {
-        return await Notification.find().sort({ createdAt: -1 });
+        return await NotificationRepository.findAllGeneral();
+    }
+
+    static async getRecentNotifications(limit = 10) {
+        return await NotificationRepository.findRecentGeneral(limit);
+    }
+
+    static async getUnreadCount() {
+        return await NotificationRepository.countUnreadGeneral();
+    }
+
+    static async getNotificationsByType(type) {
+        return await NotificationRepository.findByType(type);
     }
 
     static async markAsRead(notificationId) {
-        return await Notification.findByIdAndUpdate(notificationId, { read: true }, { new: true });
+        return await NotificationRepository.markAsRead(notificationId);
+    }
+
+    static async markMultipleAsRead(notificationIds) {
+        return await NotificationRepository.markMultipleAsRead(notificationIds);
+    }
+
+    static async deleteNotification(notificationId) {
+        return await NotificationRepository.deleteById(notificationId);
     }
 
     static async clearAll() {
-        return await Notification.deleteMany({});
+        return await NotificationRepository.clearAllGeneral();
     }
 }
 

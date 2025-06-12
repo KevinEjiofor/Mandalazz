@@ -1,32 +1,29 @@
-const Comment = require('../data/model/commentModel');
-const Product = require('../../product/data/models/productModel');
-const User = require('../../user/data/models/userModel');
-const { getIO } = require("../../utils/socketHandler");
+const commentRepository = require('../data/repositories/CommentRepository');
+const { getIO } = require('../../utils/socketHandler');
 const NotificationService = require('../../notification/service/NotificationService');
 
 class CommentService {
+
     static async addComment(productId, userId, commentText) {
-        const product = await Product.findById(productId);
+        const product = await commentRepository.getProductById(productId);
         if (!product) throw new Error('Product not found');
 
-        const user = await User.findById(userId);
+        const user = await commentRepository.getUserById(userId);
         if (!user) throw new Error('User not found');
 
-        const comment = new Comment({
-            user: userId,
+        const comment = await commentRepository.createComment({
+            productId,
+            userId,
             firstName: user.firstName,
             lastName: user.lastName,
             comment: commentText,
         });
-
-        await comment.save();
 
         product.comments.push(comment._id);
         await product.save();
 
         const socket = getIO();
         if (socket) {
-            // Emit to all users viewing the product
             socket.emit('commentAdded', {
                 productId,
                 comment: {
@@ -37,7 +34,6 @@ class CommentService {
                 },
             });
 
-            // Send to admin room for notifications
             socket.to('adminRoom').emit('adminNotification', {
                 type: 'comment_added',
                 message: `${user.firstName} ${user.lastName} commented on product ${product.name}`,
@@ -47,24 +43,43 @@ class CommentService {
                     userId,
                     productName: product.name,
                     comment: commentText,
+                },
+                action: {
+                    type: 'navigate',
+                    url: `/products/${productId}`,
+                    params: {
+                        commentId: comment._id,
+                        scrollTo: 'comments'
+                    },
+                    label: 'View Comment'
                 }
             });
         }
 
-        // Create a persistent notification for admin
-        await NotificationService.addNotification(
+        // Create notification with clickable action
+        await NotificationService.createNotificationWithAction(
             'comment_added',
-            `${user.firstName} ${user.lastName} commented on product ${product.name}`,
+            `${user.firstName} ${user.lastName} commented on "${product.name}"`,
             {
                 productId,
                 commentId: comment._id,
                 userId,
                 productName: product.name,
                 comment: commentText,
+            },
+            {
+                type: 'navigate',
+                url: `/products/${productId}`,
+                params: {
+                    commentId: comment._id,
+                    scrollTo: 'comments'
+                },
+                label: 'View Comment'
             }
         );
 
         return {
+            comment_id: comment._id,
             firstName: user.firstName,
             lastName: user.lastName,
             comment: comment.comment,
@@ -72,362 +87,440 @@ class CommentService {
         };
     }
 
-    static async deleteComment(productId, commentId, userId, isAdmin) {
-        const product = await Product.findById(productId);
-        if (!product) throw new Error('Product not found');
+    static async updateComment(productId, commentId, userId, newCommentText, isAdmin) {
+        console.log(`Attempting to update comment: ${commentId}`);
 
-        const comment = await Comment.findById(commentId);
-        if (!comment) throw new Error('Comment not found');
-
-        if (comment.user.toString() !== userId && !isAdmin) {
-            throw new Error('Unauthorized');
+        const comment = await commentRepository.getCommentById(commentId);
+        if (!comment) {
+            console.error(`Comment not found for ID: ${commentId}`);
+            throw new Error('Comment not found');
         }
 
-        const user = await User.findById(userId);
-        if (!user) throw new Error('User not found');
+        // FIXED: Proper authorization check for update
+        const commentUserId = comment.user._id ? comment.user._id.toString() : comment.user.toString();
+        const requestUserId = userId.toString();
 
-        await Comment.findByIdAndDelete(commentId);
+        console.log(`Comment belongs to user: ${commentUserId}, Request from user: ${requestUserId}, Is Admin: ${isAdmin}`);
 
-        product.comments = product.comments.filter(
-            (id) => id.toString() !== commentId
-        );
-        await product.save();
-
-        const socket = getIO();
-        if (socket) {
-            socket.emit('commentDeleted', {
-                productId,
-                commentId,
-                user: {
-                    firstName: comment.firstName,
-                    lastName: comment.lastName
-                }
-            });
-
-            // Notify admin about deletion
-            if (!isAdmin) {
-                socket.to('adminRoom').emit('adminNotification', {
-                    type: 'comment_deleted',
-                    message: `${user.firstName} ${user.lastName} deleted a comment on product ${product.name}`,
-                    data: {
-                        productId,
-                        commentId,
-                        productName: product.name,
-                    }
-                });
-
-                // Create persistent notification
-                await NotificationService.addNotification(
-                    'comment_deleted',
-                    `${user.firstName} ${user.lastName} deleted a comment on product ${product.name}`,
-                    {
-                        productId,
-                        commentId,
-                        productName: product.name,
-                    }
-                );
-            }
+        // Check ownership or admin privilege
+        if (!isAdmin && commentUserId !== requestUserId) {
+            console.error(`User ${userId} not authorized to update comment ${commentId}`);
+            throw new Error('Unauthorized to update this comment');
         }
 
-        return {
-            firstName: comment.firstName,
-            lastName: comment.lastName,
-            comment: comment.comment,
-            createdAt: comment.createdAt,
-        };
-    }
-
-    static async getComments(productId) {
-        const product = await Product.findById(productId).populate('comments');
-        if (!product) throw new Error('Product not found');
-
-        const populatedComments = await Comment.find({ _id: { $in: product.comments } });
-
-        return populatedComments.map(c => ({
-            firstName: c.firstName,
-            lastName: c.lastName,
-            comment: c.comment,
-            createdAt: c.createdAt,
-            totalLikes: c.likes.length,
-            reactions: c.reactions.map(r => ({
-                emoji: r.emoji,
-                count: r.users.length
-            }))
-        }));
-    }
-
-    static async updateComment(productId, commentId, userId, updatedText, isAdmin) {
-        const product = await Product.findById(productId);
-        if (!product) throw new Error('Product not found');
-
-        const commentExistsInProduct = product.comments.some(
-            (id) => id.toString() === commentId
-        );
-        if (!commentExistsInProduct) throw new Error('Comment not associated with this product');
-
-        const comment = await Comment.findById(commentId);
-        if (!comment) throw new Error('Comment not found');
-
-        const user = await User.findById(userId);
-        if (!user) throw new Error('User not found');
-
-        const TEN_MINUTES = 10 * 60 * 1000;
-        const now = Date.now();
-        const createdAt = new Date(comment.createdAt).getTime();
-        if (now - createdAt > TEN_MINUTES && !isAdmin) {
-            throw new Error('Edit window has expired');
+        const updatedComment = await commentRepository.updateComment(commentId, newCommentText);
+        if (!updatedComment) {
+            console.error(`Failed to update comment for ID: ${commentId}`);
+            throw new Error('Comment not found or update failed');
         }
-
-        if (comment.user.toString() !== userId && !isAdmin) {
-            throw new Error('Unauthorized');
-        }
-
-        comment.comment = updatedText;
-        await comment.save();
 
         const socket = getIO();
         if (socket) {
             socket.emit('commentUpdated', {
-                productId,
                 commentId,
-                updatedComment: {
-                    comment: comment.comment,
-                    updatedAt: comment.updatedAt || new Date(),
-                }
+                comment: updatedComment.comment,
             });
 
-            // Notify admin about the update (if not by admin)
-            if (!isAdmin) {
-                socket.to('adminRoom').emit('adminNotification', {
-                    type: 'comment_updated',
-                    message: `${user.firstName} ${user.lastName} updated a comment on product ${product.name}`,
-                    data: {
-                        productId,
-                        commentId,
-                        productName: product.name,
-                        updatedComment: updatedText
-                    }
-                });
-
-                // Create persistent notification
-                await NotificationService.addNotification(
-                    'comment_updated',
-                    `${user.firstName} ${user.lastName} updated a comment on product ${product.name}`,
-                    {
-                        productId,
-                        commentId,
-                        productName: product.name,
-                        updatedComment: updatedText
-                    }
-                );
-            }
+            // Notify admin about comment update with clickable action
+            const product = await commentRepository.getProductById(productId);
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'comment_updated',
+                message: `Comment updated on product ${product?.name || 'Unknown'}`,
+                data: {
+                    productId,
+                    commentId,
+                    userId,
+                    productName: product?.name,
+                    newComment: newCommentText,
+                },
+                action: {
+                    type: 'navigate',
+                    url: `/products/${productId}`,
+                    params: {
+                        commentId: commentId,
+                        scrollTo: 'comments'
+                    },
+                    label: 'View Updated Comment'
+                }
+            });
         }
 
-        return {
-            firstName: comment.firstName,
-            lastName: comment.lastName,
-            comment: comment.comment,
-            createdAt: comment.createdAt,
-        };
+        return updatedComment;
     }
 
-    static async toggleLike(commentId, userId) {
-        const comment = await Comment.findById(commentId);
-        if (!comment) throw new Error('Comment not found');
+    // FIXED: Updated deleteComment method with proper authorization
+    static async deleteComment(productId, commentId, userId, isAdmin) {
+        const mongoose = require('mongoose');
 
-        const user = await User.findById(userId);
-        if (!user) throw new Error('User not found');
+        console.log(`Delete attempt - ProductId: ${productId}, CommentId: ${commentId}, UserId: ${userId}, IsAdmin: ${isAdmin}`);
 
-        const product = await Product.findOne({ comments: commentId });
-        if (!product) throw new Error('Associated product not found');
-
-        const alreadyLiked = comment.likes.includes(userId);
-        if (alreadyLiked) {
-            comment.likes = comment.likes.filter(id => id.toString() !== userId);
-        } else {
-            comment.likes.push(userId);
+        if (!mongoose.Types.ObjectId.isValid(commentId)) {
+            console.error(`Invalid comment ID: ${commentId}`);
+            throw new Error('Invalid comment ID');
         }
 
-        await comment.save();
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            console.error(`Invalid product ID: ${productId}`);
+            throw new Error('Invalid product ID');
+        }
+
+        console.log(`Deleting comment ${commentId} from product ${productId}`);
+
+        const comment = await commentRepository.getCommentById(commentId);
+        if (!comment) {
+            console.error(`Comment not found for ID: ${commentId}`);
+            throw new Error('Comment not found');
+        }
+
+        // FIXED: Proper authorization check - handle both ObjectId and string comparisons
+        const commentUserId = comment.user._id ? comment.user._id.toString() : comment.user.toString();
+        const requestUserId = userId.toString();
+
+        console.log(`Comment belongs to user: ${commentUserId}, Request from user: ${requestUserId}, Is Admin: ${isAdmin}`);
+
+        // Check if user owns the comment or is admin
+        if (!isAdmin && commentUserId !== requestUserId) {
+            console.error(`User ${userId} not authorized to delete comment ${commentId}`);
+            throw new Error('Unauthorized to delete this comment');
+        }
+
+        console.log(`Authorization passed - proceeding with deletion`);
+
+        await commentRepository.deleteComment(commentId);
+
+        const product = await commentRepository.getProductById(productId);
+        if (product) {
+            product.comments.pull(commentId);
+            await product.save();
+        }
+
+        const socket = getIO();
+        if (socket) {
+            socket.emit('commentDeleted', { commentId });
+
+            // Notify admin about comment deletion with clickable action
+            socket.to('adminRoom').emit('adminNotification', {
+                type: 'comment_deleted',
+                message: `Comment deleted from product ${product?.name || 'Unknown'}`,
+                data: {
+                    productId,
+                    commentId,
+                    userId,
+                    productName: product?.name,
+                },
+                action: {
+                    type: 'navigate',
+                    url: `/products/${productId}`,
+                    params: {
+                        scrollTo: 'comments'
+                    },
+                    label: 'View Product'
+                }
+            });
+        }
+
+        // Create notification for comment deletion with action
+        await NotificationService.createNotificationWithAction(
+            'comment_deleted',
+            `Comment deleted from "${product?.name || 'Unknown'}"`,
+            {
+                productId,
+                commentId,
+                userId,
+                productName: product?.name,
+            },
+            {
+                type: 'navigate',
+                url: `/products/${productId}`,
+                params: {
+                    scrollTo: 'comments'
+                },
+                label: 'View Product'
+            }
+        );
+
+        return { message: 'Comment deleted successfully' };
+    }
+
+    static async likeComment(commentId, userId) {
+        const updatedComment = await commentRepository.likeComment(commentId, userId);
+        if (!updatedComment) throw new Error('Comment not found');
+
+        // Get user and product info for notification
+        const user = await commentRepository.getUserById(userId);
+        const product = await commentRepository.getProductById(updatedComment.productId);
 
         const socket = getIO();
         if (socket) {
             socket.emit('commentLiked', {
                 commentId,
-                userId,
-                liked: !alreadyLiked,
-                totalLikes: comment.likes.length,
+                likes: updatedComment.likes,
             });
 
-            // Only notify admin about new likes (not unlikes)
-            if (!alreadyLiked) {
+            // Notify admin about comment like
+            if (user && product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_liked',
-                    message: `${user.firstName} ${user.lastName} liked a comment on product ${product.name}`,
+                    message: `${user.firstName} ${user.lastName} liked a comment on "${product.name}"`,
                     data: {
-                        productId: product._id,
+                        productId: updatedComment.productId,
                         commentId,
                         userId,
                         productName: product.name,
+                        likesCount: updatedComment.likes.length,
+                    },
+                    action: {
+                        type: 'navigate',
+                        url: `/products/${updatedComment.productId}`,
+                        params: {
+                            commentId: commentId,
+                            scrollTo: 'comments'
+                        },
+                        label: 'View Comment'
                     }
                 });
+            }
+        }
 
-                // Create persistent notification for likes
-                await NotificationService.addNotification(
-                    'comment_liked',
-                    `${user.firstName} ${user.lastName} liked a comment on product ${product.name}`,
-                    {
-                        productId: product._id,
+        return updatedComment;
+    }
+
+    static async unlikeComment(commentId, userId) {
+        const updatedComment = await commentRepository.unlikeComment(commentId, userId);
+        if (!updatedComment) throw new Error('Comment not found');
+
+        // Get user and product info for notification
+        const user = await commentRepository.getUserById(userId);
+        const product = await commentRepository.getProductById(updatedComment.productId);
+
+        const socket = getIO();
+        if (socket) {
+            socket.emit('commentUnliked', {
+                commentId,
+                likes: updatedComment.likes,
+            });
+
+            // Notify admin about comment unlike
+            if (user && product) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_unliked',
+                    message: `${user.firstName} ${user.lastName} unliked a comment on "${product.name}"`,
+                    data: {
+                        productId: updatedComment.productId,
                         commentId,
                         userId,
                         productName: product.name,
+                        likesCount: updatedComment.likes.length,
+                    },
+                    action: {
+                        type: 'navigate',
+                        url: `/products/${updatedComment.productId}`,
+                        params: {
+                            commentId: commentId,
+                            scrollTo: 'comments'
+                        },
+                        label: 'View Comment'
                     }
-                );
+                });
             }
         }
 
-        return { liked: !alreadyLiked, totalLikes: comment.likes.length };
+        return updatedComment;
     }
 
-    static async reactWithEmoji(commentId, userId, emoji) {
-        const comment = await Comment.findById(commentId);
+    static async reactToComment(commentId, emoji) {
+        const comment = await commentRepository.getCommentWithReactions(commentId);
         if (!comment) throw new Error('Comment not found');
 
-        const user = await User.findById(userId);
-        if (!user) throw new Error('User not found');
+        const reactions = comment.reactions || {};
+        reactions[emoji] = (reactions[emoji] || 0) + 1;
 
-        const product = await Product.findOne({ comments: commentId });
-        if (!product) throw new Error('Associated product not found');
+        const updatedComment = await commentRepository.updateReactions(commentId, reactions);
 
-        const existingReactionIndex = comment.reactions.findIndex(
-            r => r.users.includes(userId)
-        );
-
-        let message;
-        let isNewReaction = false;
-
-        if (existingReactionIndex !== -1) {
-            const existing = comment.reactions[existingReactionIndex];
-
-            if (existing.emoji === emoji) {
-                existing.users = existing.users.filter(id => id.toString() !== userId);
-                if (existing.users.length === 0) {
-                    comment.reactions.splice(existingReactionIndex, 1);
-                }
-                message = 'Reaction removed successfully';
-            } else {
-                existing.users = existing.users.filter(id => id.toString() !== userId);
-                if (existing.users.length === 0) {
-                    comment.reactions.splice(existingReactionIndex, 1);
-                }
-
-                let newReaction = comment.reactions.find(r => r.emoji === emoji);
-                if (!newReaction) {
-                    comment.reactions.push({ emoji, users: [userId] });
-                } else {
-                    newReaction.users.push(userId);
-                }
-
-                message = 'Reaction updated successfully';
-                isNewReaction = true;
-            }
-        } else {
-            let newReaction = comment.reactions.find(r => r.emoji === emoji);
-            if (!newReaction) {
-                comment.reactions.push({ emoji, users: [userId] });
-            } else {
-                newReaction.users.push(userId);
-            }
-            message = 'Reaction added successfully';
-            isNewReaction = true;
-        }
-
-        await comment.save();
+        // Get product info for notification
+        const product = await commentRepository.getProductById(updatedComment.productId);
 
         const socket = getIO();
         if (socket) {
             socket.emit('commentReacted', {
                 commentId,
-                reactions: comment.reactions.map(r => ({
-                    emoji: r.emoji,
-                    count: r.users.length
-                }))
+                reactions: updatedComment.reactions,
             });
 
-            // Only notify admin about new reactions (not reaction removals)
-            if (isNewReaction) {
+            // Notify admin about comment reaction
+            if (product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_reacted',
-                    message: `${user.firstName} ${user.lastName} reacted with ${emoji} on a comment on product ${product.name}`,
+                    message: `Someone reacted ${emoji} to a comment on "${product.name}"`,
                     data: {
-                        productId: product._id,
+                        productId: updatedComment.productId,
                         commentId,
-                        userId,
-                        emoji,
                         productName: product.name,
+                        emoji: emoji,
+                        reactions: updatedComment.reactions,
+                    },
+                    action: {
+                        type: 'navigate',
+                        url: `/products/${updatedComment.productId}`,
+                        params: {
+                            commentId: commentId,
+                            scrollTo: 'comments'
+                        },
+                        label: 'View Comment'
                     }
                 });
-
-                // Create persistent notification
-                await NotificationService.addNotification(
-                    'comment_reacted',
-                    `${user.firstName} ${user.lastName} reacted with ${emoji} on a comment on product ${product.name}`,
-                    {
-                        productId: product._id,
-                        commentId,
-                        userId,
-                        emoji,
-                        productName: product.name,
-                    }
-                );
             }
         }
 
-        return {
-            message,
-            reactions: comment.reactions.map(r => ({
-                emoji: r.emoji,
-                count: r.users.length
-            }))
-        };
+        return updatedComment;
+    }
+
+    static async getCommentsByProduct(productId) {
+        return await commentRepository.getCommentsByProductId(productId);
+    }
+
+    // ADDED: Missing methods that controller is trying to call
+    static async getComments(productId) {
+        return await this.getCommentsByProduct(productId);
+    }
+
+    static async toggleLike(commentId, userId) {
+        const comment = await commentRepository.getCommentById(commentId);
+        if (!comment) throw new Error('Comment not found');
+
+        const isLiked = comment.likes.includes(userId);
+
+        if (isLiked) {
+            return await this.unlikeComment(commentId, userId);
+        } else {
+            return await this.likeComment(commentId, userId);
+        }
+    }
+
+    static async reactWithEmoji(commentId, userId, emoji) {
+        const comment = await commentRepository.getCommentById(commentId);
+        if (!comment) throw new Error('Comment not found');
+
+        // Find existing reaction for this emoji
+        let reactionIndex = comment.reactions.findIndex(r => r.emoji === emoji);
+        let actionType = 'added';
+
+        if (reactionIndex === -1) {
+            // Add new reaction
+            comment.reactions.push({ emoji, users: [userId] });
+        } else {
+            // Check if user already reacted with this emoji
+            const userIndex = comment.reactions[reactionIndex].users.indexOf(userId);
+            if (userIndex === -1) {
+                comment.reactions[reactionIndex].users.push(userId);
+            } else {
+                // User already reacted, remove their reaction
+                comment.reactions[reactionIndex].users.splice(userIndex, 1);
+                actionType = 'removed';
+                // If no users left for this emoji, remove the emoji reaction
+                if (comment.reactions[reactionIndex].users.length === 0) {
+                    comment.reactions.splice(reactionIndex, 1);
+                }
+            }
+        }
+
+        const updatedComment = await commentRepository.updateReactions(commentId, comment.reactions);
+
+        // Get user and product info for notification
+        const user = await commentRepository.getUserById(userId);
+        const product = await commentRepository.getProductById(comment.productId);
+
+        const socket = getIO();
+        if (socket) {
+            socket.emit('commentReacted', {
+                commentId,
+                reactions: updatedComment.reactions,
+            });
+
+            // Notify admin about emoji reaction
+            if (user && product) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_emoji_reaction',
+                    message: `${user.firstName} ${user.lastName} ${actionType} ${emoji} reaction to a comment on "${product.name}"`,
+                    data: {
+                        productId: comment.productId,
+                        commentId,
+                        userId,
+                        productName: product.name,
+                        emoji: emoji,
+                        actionType: actionType,
+                        reactions: updatedComment.reactions,
+                    },
+                    action: {
+                        type: 'navigate',
+                        url: `/products/${comment.productId}`,
+                        params: {
+                            commentId: commentId,
+                            scrollTo: 'comments'
+                        },
+                        label: 'View Comment'
+                    }
+                });
+            }
+        }
+
+        return updatedComment;
     }
 
     static async removeReaction(commentId, userId) {
-        const comment = await Comment.findById(commentId);
+        const comment = await commentRepository.getCommentById(commentId);
         if (!comment) throw new Error('Comment not found');
 
-        let removed = false;
-
-        comment.reactions = comment.reactions.map(reaction => {
-            const filteredUsers = reaction.users.filter(id => id.toString() !== userId);
-            if (filteredUsers.length !== reaction.users.length) {
-                removed = true;
+        // Remove user from all reactions
+        comment.reactions.forEach(reaction => {
+            const userIndex = reaction.users.indexOf(userId);
+            if (userIndex !== -1) {
+                reaction.users.splice(userIndex, 1);
             }
-            return { ...reaction.toObject(), users: filteredUsers };
-        }).filter(reaction => reaction.users.length > 0);
+        });
 
-        if (!removed) throw new Error('No reaction found to remove');
+        // Remove empty reactions
+        comment.reactions = comment.reactions.filter(reaction => reaction.users.length > 0);
 
-        await comment.save();
+        const updatedComment = await commentRepository.updateReactions(commentId, comment.reactions);
+
+        // Get user and product info for notification
+        const user = await commentRepository.getUserById(userId);
+        const product = await commentRepository.getProductById(comment.productId);
 
         const socket = getIO();
         if (socket) {
             socket.emit('reactionRemoved', {
                 commentId,
-                reactions: comment.reactions.map(r => ({
-                    emoji: r.emoji,
-                    count: r.users.length
-                }))
+                reactions: updatedComment.reactions,
             });
+
+            // Notify admin about reaction removal
+            if (user && product) {
+                socket.to('adminRoom').emit('adminNotification', {
+                    type: 'comment_reactions_removed',
+                    message: `${user.firstName} ${user.lastName} removed all reactions from a comment on "${product.name}"`,
+                    data: {
+                        productId: comment.productId,
+                        commentId,
+                        userId,
+                        productName: product.name,
+                        reactions: updatedComment.reactions,
+                    },
+                    action: {
+                        type: 'navigate',
+                        url: `/products/${comment.productId}`,
+                        params: {
+                            commentId: commentId,
+                            scrollTo: 'comments'
+                        },
+                        label: 'View Comment'
+                    }
+                });
+            }
         }
 
-        return {
-            message: 'Reaction removed successfully',
-            reactions: comment.reactions.map(r => ({
-                emoji: r.emoji,
-                count: r.users.length
-            }))
-        };
+        return updatedComment;
     }
 }
 

@@ -1,7 +1,7 @@
 const io = require('socket.io-client');
 
 // Connect to the WebSocket server
-const socket = io('http://localhost:3030');
+const socket = io('http://localhost:3000');
 
 // Join the adminRoom
 socket.emit('joinRoom', 'adminRoom');

@@ -1,127 +1,63 @@
 const mongoose = require('mongoose');
 
 const variationSchema = new mongoose.Schema({
-    color: {
-        type: String,
-        required: [true, 'Color is required'],
-        trim: true,
-    },
-    sizes: [
-        {
-            size: {
-                type: String,
-                required: [true, 'Size is required'],
-            },
-            stock: {
-                type: Number,
-                required: [true, 'Stock is required'],
-                min: [0, 'Stock cannot be negative'],
-            },
-        },
-    ],
+    color: { type: String, required: true, trim: true },
+    sizes: [{
+        size: { type: String, required: true },
+        stock: { type: Number, required: true, min: 0 }
+    }],
     images: {
         type: [String],
-        required: [true, 'At least one image is required for each variation'],
+        required: true,
         validate: {
-            validator: (images) => images.length > 0,
-            message: 'Each variation must have at least one image',
-        },
-    },
+            validator: imgs => imgs.length > 0,
+            message: 'At least one image per variation is required'
+        }
+    }
 });
 
-const productSchema = new mongoose.Schema(
-    {
-        name: {
-            type: String,
-            required: [true, 'Product name is required'],
-            trim: true,
-        },
-        price: {
-            type: mongoose.Schema.Types.Decimal128,
-            required: [true, 'Product price is required'],
-            validate: {
-                validator: (value) => value > 0,
-                message: 'Product price must be greater than 0',
-            },
-        },
-        discountPrice: {
-            type: mongoose.Schema.Types.Decimal128,
-            validate: {
-                validator: function (value) {
-                    return value == null || value < this.price;
-                },
-                message: 'Discount price must be less than the original price',
-            },
-        },
-        description: {
-            type: String,
-            trim: true,
-            default: null,
-        },
-        variations: {
-            type: [variationSchema],
-            required: [true, 'At least one variation is required'],
-            validate: {
-                validator: (variations) => variations.length > 0,
-                message: 'Product must have at least one variation',
-            },
-        },
-        category: {
-            type: String,
-            required: [true, 'Category is required'],
-            enum: {
-                values: ['woman', 'man', 'unisex', 'skincare', 'electronics', 'accessories', 'home'],
-                message: 'Invalid category',
-            },
-        },
-        tags: {
-            type: [String],
-            default: [],
-        },
-        isActive: {
-            type: Boolean,
-            default: true,
-        },
-        createdBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Admin',
-            required: [true, 'Admin ID is required'],
-        },
-        adminName: {
-            type: String,
-            ref: 'Admin',
-            required: [true, 'Admin name is required'],
-        },
-        comments: {
-            type: [mongoose.Schema.Types.ObjectId],
-            ref: 'Comment',
-            default: [],
-        },
-        rating: {
-            type: Number,
-            default: 0,
-            min: [0, 'Rating cannot be less than 0'],
-            max: [5, 'Rating cannot be more than 5'],
-        },
-        reviewCount: {
-            type: Number,
-            default: 0,
-            min: [0, 'Review count cannot be less than 0'],
-        },
-        brand: {
-            type: String,
-            trim: true,
-            default: null,
-        },
-        dateAdded: {
-            type: Date,
-            default: Date.now,
-        },
+const productSchema = new mongoose.Schema({
+    name: { type: String, required: true, trim: true },
+    price: {
+        type: mongoose.Schema.Types.Decimal128,
+        required: true,
+        min: [0.01, 'Price must be > 0']
     },
-    { timestamps: true }
-);
+    discountPrice: {
+        type: mongoose.Schema.Types.Decimal128,
+        validate: {
+            validator(v) { return v == null || v >= 0 && v < this.price; },
+            message: 'Discount must be >= 0 and less than original price'
+        }
+    },
+    description: { type: String, trim: true, default: null },
+    variations: {
+        type: [variationSchema],
+        required: true,
+        validate: { validator(arr) { return arr.length > 0; }, message: 'At least one variation required' }
+    },
+    category: {
+        type: String,
+        required: true,
+        enum: ['woman','man','unisex','skincare','electronics','accessories','home','general']
+    },
+    tags: { type: [String], default: [] },
+    isActive: {
+        type: Boolean, default: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
+    adminName: { type: String, required: true },
+    comments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Comment' }],
+    rating: { type: Number, default: 0, min: 0, max: 5 },
+    reviewCount: { type: Number, default: 0, min: 0 },
+    brand: { type: String, trim: true, default: null },
+    brandType: {
+        type: String,
+        required: true,
+        enum: ['foreign', 'local']
+    },
+    dateAdded: { type: Date, default: Date.now }
+}, { timestamps: true });
 
-
-productSchema.index({ name: 'text', description: 'text', tags: 'text' });
+productSchema.index({ name: 'text', description: 'text', tags: 'text', brand: 'text' });
 
 module.exports = mongoose.model('Product', productSchema);

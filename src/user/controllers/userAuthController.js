@@ -14,20 +14,33 @@ class UserController {
 
     static async loginUser(req, res) {
         try {
-            const { email, password, guestId } = req.body;
-            const token = await UserService.authenticateUser(email, password, guestId);
+            const { email, password } = req.body;
 
-            // Now you can safely delete guestId from session here
-            if (req.session) {
-                delete req.session.guestId;
+            const guestId = req.session?.guestId || null;
+
+            const result = await UserService.authenticateUser(email, password, guestId);
+
+            let token, userId;
+            if (typeof result === 'string') {
+                token = result;
+            } else {
+                token = result.token;
+                userId = result.userId;
             }
 
-            sendSuccessResponse(res, { token });
+            if (guestId && req.session) {
+                delete req.session.guestId;
+                console.log(`🧹 Cleared guestId from session after successful login`);
+            }
+            const responseData = { token };
+            if (userId) {
+                responseData.userId = userId;
+            }
+            sendSuccessResponse(res, responseData);
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
-
 
     static async verifyEmail(req, res) {
         try {
@@ -43,7 +56,7 @@ class UserController {
         try {
             const { email } = req.body;
             await UserService.resendVerificationEmail(email);
-            sendSuccessResponse(res, { message: 'Verification email resent successfully' });
+            sendSuccessResponse(res, { message: 'Verification email resent' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -73,7 +86,7 @@ class UserController {
         try {
             const { email, token } = req.body;
             await UserService.validateResetToken(email, token);
-            sendSuccessResponse(res, { message: 'Token validated successfully' });
+            sendSuccessResponse(res, { message: 'Token validated' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -92,6 +105,13 @@ class UserController {
     static async logout(req, res) {
         try {
 
+            if (req.session) {
+                req.session.destroy((err) => {
+                    if (err) {
+                        console.error('Session destruction error:', err);
+                    }
+                });
+            }
             sendSuccessResponse(res, { message: 'Logged out successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);

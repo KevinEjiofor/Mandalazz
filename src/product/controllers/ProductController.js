@@ -1,43 +1,19 @@
 const productService = require('../services/ProductService');
+const productValidator = require('../../utils/ProductValidator');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
 class ProductController {
-    validateCategory(category) {
-        const validCategories = ['woman', 'man', 'unisex', 'skincare', 'electronics', 'accessories', 'home'];
-        if (category && !validCategories.includes(category)) {
-            throw new Error('Invalid category');
-        }
-    }
-
-    validateSortBy(sortBy) {
-        const validSortOptions = [
-            'newest', 'oldest', 'price_high_to_low', 'price_low_to_high',
-            'rating_high_to_low', 'rating_low_to_high', 'popularity',
-            'name_a_to_z', 'name_z_to_a'
-        ];
-
-        if (sortBy && !validSortOptions.includes(sortBy)) {
-            throw new Error(`Invalid sort option. Valid options are: ${validSortOptions.join(', ')}`);
-        }
-    }
-
-    async validateAndProcessVariations(variations, files) {
-        if (variations) {
-            return await productService.processVariations(variations, files);
-        }
-        return [];
-    }
-
     async addProduct(req, res) {
         try {
-            const { name, price, description, category, brand, variations } = req.body;
+            const { name, price, description, category, brand, brandType, variations } = req.body;
 
-            const formattedVariations = JSON.parse(variations);
+
+            productValidator.validateProductData({ name, price, category, brandType });
 
             const result = await productService.addProduct(
-                { name, price, description, brand, category },
+                { name, price, description, brand, category, brandType },
                 req.admin,
-                formattedVariations,
+                variations,
                 req.files
             );
 
@@ -50,33 +26,49 @@ class ProductController {
 
     async updateProduct(req, res) {
         try {
-            const { name, price, description, category, brand, variations } = req.body;
+            const productId = req.params.id;
+            if (!productId) {
+                return sendErrorResponse(res, "Product ID is required", 400);
+            }
 
-            this.validateCategory(category);
-
-            const formattedVariations = await this.validateAndProcessVariations(variations, req.files);
-
-            const updateData = {
+            const {
                 name,
                 price,
                 description,
-                brand,
                 category,
-            };
+                brand,
+                brandType,
+                variations
+            } = req.body;
+
+            // Step 1: Validate the input data (only fields provided)
+            const dataToValidate = { name, price, category, brandType };
+            const filteredData = Object.fromEntries(
+                Object.entries(dataToValidate).filter(([_, value]) => value !== undefined)
+            );
+
+            if (Object.keys(filteredData).length > 0) {
+                productValidator.validateProductData(filteredData, true);
+            }
+
+            const updateData = { name, price, description, category, brand, brandType };
+            const cleanUpdateData = Object.fromEntries(
+                Object.entries(updateData).filter(([_, value]) => value !== undefined)
+            );
 
             const result = await productService.updateProduct(
-                req.params.id,
-                updateData,
-                formattedVariations,
+                productId,
+                cleanUpdateData,
+                variations,
                 req.files
             );
 
             sendSuccessResponse(res, result.message, result.product);
         } catch (error) {
-            console.error("Error in updateProduct:", error);
             sendErrorResponse(res, error.message || "Failed to update product");
         }
     }
+
 
     async deleteProduct(req, res) {
         try {
@@ -89,17 +81,21 @@ class ProductController {
 
     async getAllProducts(req, res) {
         try {
-            const { category, sortBy, page = 1, limit = 20 } = req.query;
+            const validatedFilters = productValidator.validateFilters(req.query);
+            const { category, brandType, sortBy, page, limit } = validatedFilters;
 
-            // Validate category if provided
-            this.validateCategory(category);
-
-            // Validate sortBy if provided
-            this.validateSortBy(sortBy);
-
-            const result = await productService.fetchAllProducts(category, sortBy, page, limit);
-
+            const result = await productService.fetchAllProducts(category, brandType, sortBy, page, limit);
             sendSuccessResponse(res, 'Products retrieved successfully', result);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    async getProductById(req, res) {
+        try {
+            const product = await productService.getProductById(req.params.id);
+            if (!product) return sendErrorResponse(res, 'Product not found', 404);
+            sendSuccessResponse(res, 'Product retrieved successfully', product);
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -107,43 +103,62 @@ class ProductController {
 
     async searchProducts(req, res) {
         try {
-            const { query, sortBy, category, page = 1, limit = 20 } = req.query;
+            const { query, sortBy, category, brandType, page, limit } = req.query;
+            const validatedQuery = productValidator.validateSearchQuery(query);
+            const validatedFilters = productValidator.validateFilters({ category, brandType, sortBy, page, limit });
 
-            if (!query) {
-                return sendErrorResponse(res, 'Query parameter is required');
-            }
+            const result = await productService.searchProducts(
+                validatedQuery,
+                validatedFilters.sortBy,
+                validatedFilters.category,
+                validatedFilters.brandType,
+                validatedFilters.page,
+                validatedFilters.limit
+            );
 
-            // Validate category if provided
-            this.validateCategory(category);
-
-            // Validate sortBy if provided
-            this.validateSortBy(sortBy);
-
-            const result = await productService.searchProducts(query, sortBy, category, page, limit);
             sendSuccessResponse(res, 'Products retrieved successfully', result);
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
 
-    // New endpoint specifically for getting sort options
-    async getSortOptions(req, res) {
+    async getProductsByBrandType(req, res) {
         try {
-            const sortOptions = [
-                { value: 'newest', label: 'Newest Arrivals' },
-                { value: 'oldest', label: 'Oldest First' },
-                { value: 'price_high_to_low', label: 'Price: High to Low' },
-                { value: 'price_low_to_high', label: 'Price: Low to High' },
-                { value: 'rating_high_to_low', label: 'Rating: High to Low' },
-                { value: 'rating_low_to_high', label: 'Rating: Low to High' },
-                { value: 'popularity', label: 'Most Popular' },
-                { value: 'name_a_to_z', label: 'Name: A to Z' },
-                { value: 'name_z_to_a', label: 'Name: Z to A' }
-            ];
+            const { brandType } = req.params;
+            productValidator.validateBrandType(brandType);
+            const { page, limit } = productValidator.validatePagination(req.query.page, req.query.limit);
 
-            sendSuccessResponse(res, 'Sort options retrieved successfully', { sortOptions });
+            const result = await productService.getProductsByBrandType(brandType, page, limit);
+            sendSuccessResponse(res, 'Products retrieved successfully', result);
         } catch (error) {
             sendErrorResponse(res, error.message);
+        }
+    }
+
+    async getFilterOptions(req, res) {
+        try {
+            const result = await productService.getFilterOptions();
+            sendSuccessResponse(res, 'Filter options retrieved successfully', result);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    async getSortOptions(req, res) {
+        try {
+            const { sortOptions } = productValidator.getValidationOptions();
+            sendSuccessResponse(res, 'Sort options retrieved successfully', { sortOptions });
+        } catch (err) {
+            sendErrorResponse(res, err.message);
+        }
+    }
+
+    async getValidationOptions(req, res) {
+        try {
+            const opts = productValidator.getValidationOptions();
+            sendSuccessResponse(res, 'Validation options retrieved successfully', opts);
+        } catch (err) {
+            sendErrorResponse(res, err.message);
         }
     }
 }

@@ -4,27 +4,25 @@ const commentController = require('../comment/controller/commentController');
 const auth = require('../middlewares/authMiddleware');
 const isUser = require('../middlewares/isUser');
 
-// Add a comment
+// Add a comment to a product
 router.post('/:id/comment', auth, isUser, commentController.addComment);
-
-// Delete a comment (user or admin)
-router.delete('/:productId/comment/:commentId', auth, isUser,commentController.deleteComment);
 
 // Get all comments for a product
 router.get('/:id/comments', commentController.getComments);
 
-// Update a comment
-router.put('/:productId/comment/:commentId', auth, isUser,commentController.updateComment);
+// Update a comment - FIXED: consistent parameter naming
+router.put('/product/:productId/comment/:commentId', auth, isUser, commentController.updateComment);
 
-// Like / Unlike a comment
-router.post('/:commentId/like', auth, isUser, commentController.likeComment);
+// Delete a comment - FIXED: consistent parameter naming
+router.delete('/product/:productId/comment/:commentId', auth, isUser, commentController.deleteComment);
 
-// React to a comment with emoji
-router.post('/:commentId/react', auth, isUser, commentController.reactToComment);
+// Like / Unlike a comment - FIXED: use commentId consistently
+router.post('/comment/:commentId/like', auth, isUser, commentController.likeComment);
 
-// Remove reaction from comment
-router.delete('/:commentId/reaction', auth, isUser, commentController.removeReaction);
+// React to a comment with emoji - FIXED: use commentId consistently
+router.post('/comment/:commentId/react', auth, isUser, commentController.reactToComment);
 
-
+// Remove reaction from comment - FIXED: use commentId consistently
+router.delete('/comment/:commentId/reaction', auth, isUser, commentController.removeReaction);
 
 module.exports = router;

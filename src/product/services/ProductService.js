@@ -1,255 +1,315 @@
-const Product = require('../data/models/productModel');
 const cloudinary = require('../../utils/cloudinary');
+const productRepo = require('../data/repositories/ProductRepository');
 
 class ProductService {
+
     async addProduct(productData, admin, variationsData, files) {
-        try {
-            const formattedVariations = await this.processVariations(variationsData, files);
-
-            const product = await Product.create({
-                ...productData,
-                variations: formattedVariations,
-                createdBy: admin._id,
-                adminName: admin.name,
-            });
-
-            return { message: 'Product added successfully', product };
-        } catch (error) {
-            throw new Error(error.message);
+        if (productData.brandType && !['foreign', 'local'].includes(productData.brandType)) {
+            throw new Error('Brand type must be either "foreign" or "local"');
         }
+
+        const formattedVariations = await this.processVariations(variationsData, files);
+
+        const product = await productRepo.createProduct({
+            ...productData,
+            variations: formattedVariations,
+            createdBy: admin._id,
+            adminName: admin.name,
+        });
+
+        return { message: 'Product added successfully', product };
     }
 
     async updateProduct(productId, updateData, variationsData, files) {
-        try {
-            const product = await Product.findById(productId);
-            if (!product) {
-                throw new Error('Product not found');
-            }
+        const product = await productRepo.findById(productId);
+        if (!product) throw new Error('Product not found');
 
-            if (variationsData && files) {
-                const formattedVariations = await this.processVariations(variationsData, files);
-                updateData.variations = formattedVariations;
-            }
-
-            Object.assign(product, updateData);
-            await product.save();
-
-            return { message: 'Product updated successfully', product };
-        } catch (error) {
-            throw new Error(error.message);
+        if (updateData.brandType && !['foreign', 'local'].includes(updateData.brandType)) {
+            throw new Error('Brand type must be either "foreign" or "local"');
         }
+
+        if (variationsData && files && files.length > 0) {
+            await this.deleteProductImages(product.variations);
+            const processedVariations = await this.processVariations(variationsData, files);
+            updateData.variations = processedVariations;
+        } else if (variationsData && !files) {
+            updateData.variations = this.updateVariationsWithoutImages(product.variations, variationsData);
+        }
+
+        const cleanUpdateData = Object.fromEntries(
+            Object.entries(updateData).filter(([_, value]) => value !== undefined)
+        );
+
+        const updatedProduct = await productRepo.updateProduct(product, cleanUpdateData);
+        return { message: 'Product updated successfully', product: updatedProduct };
     }
 
     async deleteProduct(productId) {
-        try {
-            const product = await Product.findById(productId);
-            if (!product) {
-                throw new Error('Product not found');
-            }
+        const product = await productRepo.findById(productId);
+        if (!product) throw new Error('Product not found');
 
-            const deletePromises = product.variations.flatMap((variation) =>
-                variation.images.map(async (imageUrl) => {
-                    try {
-                        const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
-                        await cloudinary.uploader.destroy(publicId);
-                    } catch (error) {
-                        console.warn(`Failed to delete image: ${imageUrl}`);
-                    }
-                })
-            );
+        await this.deleteProductImages(product.variations);
+        await product.deleteOne();
 
-            await Promise.all(deletePromises);
-
-            await product.deleteOne();
-            return { message: 'Product deleted successfully' };
-        } catch (error) {
-            throw new Error(error.message);
-        }
+        return { message: 'Product deleted successfully' };
     }
 
-    async fetchAllProducts(category, sortBy, page = 1, limit = 20) {
-        try {
-            const filter = category ? { category, isActive: true } : { isActive: true };
+    async getProductById(productId) {
+        return await productRepo.findById(productId);
+    }
 
-            // Calculate skip for pagination
-            const skip = (page - 1) * limit;
-
-            // Build sort object
-            const sortOptions = this.buildSortOptions(sortBy);
-
-            const products = await Product.find(filter)
-                .sort(sortOptions)
-                .skip(skip)
-                .limit(parseInt(limit));
-
-            // Get total count for pagination
-            const totalProducts = await Product.countDocuments(filter);
-            const totalPages = Math.ceil(totalProducts / limit);
-
-            return {
-                products,
-                pagination: {
-                    currentPage: parseInt(page),
-                    totalPages,
-                    totalProducts,
-                    hasNextPage: page < totalPages,
-                    hasPrevPage: page > 1
-                }
-            };
-        } catch (error) {
-            throw new Error(error.message);
+    async fetchAllProducts(category, brandType, sortBy, page = 1, limit = 20) {
+        const filter = { isActive: true };
+        if (category) filter.category = category;
+        if (brandType) {
+            if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+            filter.brandType = brandType;
         }
+
+        const skip = (page - 1) * limit;
+        const sortOptions = this.buildSortOptions(sortBy);
+
+        const [products, totalProducts] = await Promise.all([
+            productRepo.findAll(filter, sortOptions, skip, limit),
+            productRepo.countDocuments(filter)
+        ]);
+
+        const totalPages = Math.ceil(totalProducts / limit);
+        return {
+            products,
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalProducts,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            }
+        };
+    }
+
+    async searchProducts(query, sortBy, category, brandType, page = 1, limit = 20) {
+        const searchFilter = {
+            $text: { $search: query },
+            isActive: true,
+        };
+        if (category) searchFilter.category = category;
+        if (brandType) {
+            if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+            searchFilter.brandType = brandType;
+        }
+
+        const skip = (page - 1) * limit;
+
+        let sortOptions;
+        if (!sortBy || typeof sortBy !== 'string' || sortBy.trim() === '') {
+
+            sortOptions = { score: { $meta: 'textScore' } };
+        } else {
+            sortOptions = this.buildSortOptions(sortBy);
+        }
+
+
+
+        const [products, totalProducts] = await Promise.all([
+            productRepo.searchProducts(searchFilter, sortOptions, skip, limit),
+            productRepo.countDocuments(searchFilter)
+        ]);
+
+        const totalPages = Math.ceil(totalProducts / limit);
+
+        return {
+            products,
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalProducts,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+            message: products.length === 0 ? 'Sorry, no products match your search.' : undefined
+        };
+    }
+
+    async getProductsByBrandType(brandType, page = 1, limit = 20) {
+        if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+
+        const filter = { brandType, isActive: true };
+        const skip = (page - 1) * limit;
+
+        const [products, totalProducts] = await Promise.all([
+            productRepo.findAll(filter, { createdAt: -1 }, skip, limit),
+            productRepo.countDocuments(filter)
+        ]);
+
+        const totalPages = Math.ceil(totalProducts / limit);
+        return {
+            products,
+            brandType,
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalProducts,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            }
+        };
+    }
+
+    async getFilterOptions() {
+        const [categories, brandTypes, brands] = await Promise.all([
+            productRepo.getDistinctValues('category', { isActive: true }),
+            productRepo.getDistinctValues('brandType', { isActive: true }),
+            productRepo.getDistinctValues('brand', { isActive: true, brand: { $ne: null } }),
+        ]);
+
+        return {
+            categories: categories.sort(),
+            brandTypes: brandTypes.sort(),
+            brands: brands.sort(),
+            sortOptions: this.getSortOptionsList(),
+        };
+    }
+
+    getSortOptionsList() {
+        return [
+            { value: 'newest', label: 'Newest First' },
+            { value: 'oldest', label: 'Oldest First' },
+            { value: 'price_high_to_low', label: 'Price: High to Low' },
+            { value: 'price_low_to_high', label: 'Price: Low to High' },
+            { value: 'rating_high_to_low', label: 'Rating: High to Low' },
+            { value: 'rating_low_to_high', label: 'Rating: Low to High' },
+            { value: 'popularity', label: 'Most Popular' },
+            { value: 'name_a_to_z', label: 'Name: A to Z' },
+            { value: 'name_z_to_a', label: 'Name: Z to A' },
+            { value: 'brand_a_to_z', label: 'Brand: A to Z' },
+            { value: 'brand_z_to_a', label: 'Brand: Z to A' },
+        ];
     }
 
     buildSortOptions(sortBy) {
-        const sortOptions = {};
-
-        switch (sortBy) {
-            case 'newest':
-                sortOptions.createdAt = -1; // Newest first
-                break;
-            case 'oldest':
-                sortOptions.createdAt = 1; // Oldest first
-                break;
-            case 'price_high_to_low':
-                sortOptions.price = -1; // Highest price first
-                break;
-            case 'price_low_to_high':
-                sortOptions.price = 1; // Lowest price first
-                break;
-            case 'rating_high_to_low':
-                sortOptions.rating = -1; // Highest rating first
-                sortOptions.reviewCount = -1; // More reviews as secondary sort
-                break;
-            case 'rating_low_to_high':
-                sortOptions.rating = 1; // Lowest rating first
-                break;
-            case 'popularity':
-                // Sort by review count (more reviews = more popular) and rating
-                sortOptions.reviewCount = -1;
-                sortOptions.rating = -1;
-                break;
-            case 'name_a_to_z':
-                sortOptions.name = 1; // Alphabetical A-Z
-                break;
-            case 'name_z_to_a':
-                sortOptions.name = -1; // Alphabetical Z-A
-                break;
-            default:
-                // Default sort by newest
-                sortOptions.createdAt = -1;
-                break;
+        // Ensure sortBy is a string and handle edge cases
+        if (!sortBy || typeof sortBy !== 'string') {
+            return { createdAt: -1 };
         }
 
-        return sortOptions;
-    }
+        // Trim whitespace and convert to lowercase for consistent comparison
+        const normalizedSortBy = sortBy.trim().toLowerCase();
 
-    async searchProducts(query, sortBy, category, page = 1, limit = 20) {
-        try {
-            // Build search filter
-            const searchFilter = {
-                $text: { $search: query },
-                isActive: true
-            };
+        const options = {
+            newest: { createdAt: -1 },
+            oldest: { createdAt: 1 },
+            price_high_to_low: { price: -1 },
+            price_low_to_high: { price: 1 },
+            rating_high_to_low: { rating: -1, reviewCount: -1 },
+            rating_low_to_high: { rating: 1 },
+            popularity: { reviewCount: -1, rating: -1 },
+            name_a_to_z: { name: 1 },
+            name_z_to_a: { name: -1 },
+            brand_a_to_z: { brand: 1 },
+            brand_z_to_a: { brand: -1 },
+        };
 
-            // Add category filter if provided
-            if (category) {
-                searchFilter.category = category;
-            }
-
-            // Calculate skip for pagination
-            const skip = (page - 1) * limit;
-
-            // Build sort options
-            let sortOptions;
-            if (sortBy) {
-                sortOptions = this.buildSortOptions(sortBy);
-            } else {
-                // For search, default to relevance score
-                sortOptions = { score: { $meta: 'textScore' } };
-            }
-
-            const products = await Product.find(
-                searchFilter,
-                { score: { $meta: 'textScore' } }
-            )
-                .sort(sortOptions)
-                .skip(skip)
-                .limit(parseInt(limit));
-
-            if (products.length === 0) {
-                return {
-                    message: 'Sorry, no products match your search.',
-                    products: [],
-                    pagination: {
-                        currentPage: parseInt(page),
-                        totalPages: 0,
-                        totalProducts: 0,
-                        hasNextPage: false,
-                        hasPrevPage: false
-                    }
-                };
-            }
-
-            // Get total count for pagination
-            const totalProducts = await Product.countDocuments(searchFilter);
-            const totalPages = Math.ceil(totalProducts / limit);
-
-            return {
-                products,
-                pagination: {
-                    currentPage: parseInt(page),
-                    totalPages,
-                    totalProducts,
-                    hasNextPage: page < totalPages,
-                    hasPrevPage: page > 1
-                }
-            };
-        } catch (error) {
-            throw new Error(error.message);
-        }
+        // Return the sort option if it exists, otherwise return default
+        const sortOption = options[normalizedSortBy] || { createdAt: -1 };
+        console.log(`Building sort options for: ${sortBy} -> ${normalizedSortBy}`, sortOption);
+        return sortOption;
     }
 
     async processVariations(variationsData, files, folder = 'products') {
         try {
-            const parsedVariations =
-                typeof variationsData === 'string' ? JSON.parse(variationsData) : variationsData;
+            const parsed = typeof variationsData === 'string' ? JSON.parse(variationsData) : variationsData;
+            if (!Array.isArray(parsed)) throw new Error('Variations should be an array');
+            if (!Array.isArray(files)) throw new Error('No image files provided');
 
-            if (!Array.isArray(parsedVariations)) {
-                throw new Error('Variations should be an array');
-            }
+            const processedVariations = await Promise.all(parsed.map(async (variation, index) => {
+                const images = files
+                    .filter((f) => f.originalname.startsWith(variation.color))
+                    .map((f) => f.path);
 
-            if (!files || !Array.isArray(files)) {
-                throw new Error('No image files provided');
-            }
-
-            return Promise.all(
-                parsedVariations.map(async (variation) => {
-                    const colorImages = files
-                        .filter((file) => file.originalname.startsWith(variation.color))
-                        .map((file) => file.path);
-
-                    if (!colorImages.length) {
-                        throw new Error(`No images uploaded for color ${variation.color}`);
-                    }
-
-                    const uploadPromises = colorImages.map((path) =>
-                        cloudinary.uploader.upload(path, { folder })
-                    );
-                    const results = await Promise.all(uploadPromises);
-                    const imageUrls = results.map((result) => result.secure_url);
-
+                if (!images.length) {
                     return {
-                        color: variation.color,
-                        sizes: variation.sizes,
-                        images: imageUrls,
+                        ...variation,
+                        images: []
                     };
-                })
-            );
+                }
+
+                const uploads = await Promise.all(
+                    images.map((path, imgIndex) =>
+                        this.uploadWithRetry(path, folder, `${variation.color}_${imgIndex}`)
+                    )
+                );
+
+                return {
+                    ...variation,
+                    images: uploads.map(u => u.secure_url)
+                };
+            }));
+
+            return processedVariations;
         } catch (error) {
             throw new Error(`Error processing variations: ${error.message}`);
         }
     }
+
+    async uploadWithRetry(imagePath, folder, fileName, maxRetries = 3) {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await cloudinary.uploader.upload(imagePath, {
+                    folder,
+                    public_id: fileName,
+                    timeout: 120000,
+                    resource_type: 'auto',
+                    overwrite: true,
+                    quality: 'auto:good',
+                    fetch_format: 'auto'
+                });
+            } catch (error) {
+                if (attempt === maxRetries) {
+                    throw new Error(`Failed to upload ${fileName} after ${maxRetries} attempts: ${error.message}`);
+                }
+                const waitTime = Math.pow(2, attempt) * 1000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
+        }
+    }
+
+    async deleteProductImages(variations) {
+        if (!variations || variations.length === 0) return;
+
+        const deletePromises = variations.flatMap((variation) =>
+            variation.images.map(async (imageUrl) => {
+                try {
+                    const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
+                    await cloudinary.uploader.destroy(publicId, { timeout: 60000 });
+                } catch (err) {
+                    console.error(`Failed to delete image: ${imageUrl}`, err);
+                }
+            })
+        );
+        await Promise.all(deletePromises);
+    }
+
+    updateVariationsWithoutImages(existingVariations, newVariationsData) {
+        try {
+            const parsed = typeof newVariationsData === 'string' ? JSON.parse(newVariationsData) : newVariationsData;
+
+            return existingVariations.map(existingVariation => {
+                const updatedVariation = parsed.find(v => v.color === existingVariation.color);
+                if (updatedVariation) {
+                    return {
+                        ...existingVariation,
+                        ...updatedVariation,
+                        images: existingVariation.images
+                    };
+                }
+                return existingVariation;
+            });
+        } catch (error) {
+            throw new Error(`Error updating variations: ${error.message}`);
+        }
+    }
+
+
 }
 
 module.exports = new ProductService();
