@@ -2,12 +2,15 @@ const NotificationRepository = require('../data/repositories/NotificationReposit
 
 class NotificationService {
 
-    static async addNotification(type, message, data) {
-        return await NotificationRepository.create({ type, message, data });
-    }
-
-    static async createNotificationWithAction(type, message, data, action = null, userId = null) {
-        return await NotificationRepository.create({ type, message, data, action, userId });
+    static async addNotification(type, message, data = {}, action = null, userId = null) {
+        const payload = {
+            type,
+            message,
+            data,
+            ...(action && { action }),
+            ...(userId && { userId }),
+        };
+        return await NotificationRepository.create(payload);
     }
 
     static async getAllNotifications() {

@@ -2,6 +2,7 @@ const CheckoutService = require('../services/CheckoutService');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
 class CheckoutController {
+
     static async createCheckout(req, res) {
         try {
             const userId = req.user.id;
@@ -46,9 +47,7 @@ class CheckoutController {
 
     static async getCheckouts(req, res) {
         try {
-            const userId = req.user.id;
-            const checkouts = await CheckoutService.getCheckouts(userId);
-
+            const checkouts = await CheckoutService.getCheckouts();
             sendSuccessResponse(res, {
                 message: 'Checkouts retrieved successfully.',
                 checkouts,
@@ -124,11 +123,11 @@ class CheckoutController {
         }
     }
 
-    // New API: Update the delivery status (Admin only)
     static async updateDeliveryStatus(req, res) {
         try {
             const { checkoutId } = req.params;
             const { deliveryStatus } = req.body;
+
             const updatedCheckout = await CheckoutService.updateDeliveryStatus(checkoutId, deliveryStatus);
 
             sendSuccessResponse(res, {
@@ -140,17 +139,16 @@ class CheckoutController {
         }
     }
 
-    // New API: Search checkouts (Admin only)
     static async searchCheckouts(req, res) {
         try {
-            const queryParams = req.query;
-            const checkouts = await CheckoutService.searchCheckouts(queryParams);
+            const results = await CheckoutService.searchCheckouts(req.query);
+
             sendSuccessResponse(res, {
-                message: 'Search completed successfully.',
-                checkouts,
+                message: 'Checkouts search successful.',
+                results,
             });
         } catch (error) {
-            sendErrorResponse(res, { message: error.message || 'Failed to search checkouts.' });
+            sendErrorResponse(res, { message: error.message || 'Search failed.' });
         }
     }
 }

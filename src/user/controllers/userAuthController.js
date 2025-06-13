@@ -2,6 +2,7 @@ const UserService = require('../services/UserService');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
 class UserController {
+
     static async createUser(req, res) {
         try {
             const { firstName, lastName, email, password } = req.body;
@@ -30,7 +31,7 @@ class UserController {
 
             if (guestId && req.session) {
                 delete req.session.guestId;
-                console.log(`🧹 Cleared guestId from session after successful login`);
+
             }
             const responseData = { token };
             if (userId) {

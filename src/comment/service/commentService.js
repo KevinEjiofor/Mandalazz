@@ -96,21 +96,19 @@ class CommentService {
             throw new Error('Comment not found');
         }
 
-        // FIXED: Proper authorization check for update
+
         const commentUserId = comment.user._id ? comment.user._id.toString() : comment.user.toString();
         const requestUserId = userId.toString();
 
-        console.log(`Comment belongs to user: ${commentUserId}, Request from user: ${requestUserId}, Is Admin: ${isAdmin}`);
 
-        // Check ownership or admin privilege
+
+
         if (!isAdmin && commentUserId !== requestUserId) {
-            console.error(`User ${userId} not authorized to update comment ${commentId}`);
             throw new Error('Unauthorized to update this comment');
         }
 
         const updatedComment = await commentRepository.updateComment(commentId, newCommentText);
         if (!updatedComment) {
-            console.error(`Failed to update comment for ID: ${commentId}`);
             throw new Error('Comment not found or update failed');
         }
 
@@ -121,7 +119,7 @@ class CommentService {
                 comment: updatedComment.comment,
             });
 
-            // Notify admin about comment update with clickable action
+
             const product = await commentRepository.getProductById(productId);
             socket.to('adminRoom').emit('adminNotification', {
                 type: 'comment_updated',
@@ -172,19 +170,13 @@ class CommentService {
             throw new Error('Comment not found');
         }
 
-        // FIXED: Proper authorization check - handle both ObjectId and string comparisons
         const commentUserId = comment.user._id ? comment.user._id.toString() : comment.user.toString();
         const requestUserId = userId.toString();
 
-        console.log(`Comment belongs to user: ${commentUserId}, Request from user: ${requestUserId}, Is Admin: ${isAdmin}`);
-
-        // Check if user owns the comment or is admin
         if (!isAdmin && commentUserId !== requestUserId) {
             console.error(`User ${userId} not authorized to delete comment ${commentId}`);
             throw new Error('Unauthorized to delete this comment');
         }
-
-        console.log(`Authorization passed - proceeding with deletion`);
 
         await commentRepository.deleteComment(commentId);
 
@@ -198,7 +190,6 @@ class CommentService {
         if (socket) {
             socket.emit('commentDeleted', { commentId });
 
-            // Notify admin about comment deletion with clickable action
             socket.to('adminRoom').emit('adminNotification', {
                 type: 'comment_deleted',
                 message: `Comment deleted from product ${product?.name || 'Unknown'}`,
@@ -219,7 +210,6 @@ class CommentService {
             });
         }
 
-        // Create notification for comment deletion with action
         await NotificationService.createNotificationWithAction(
             'comment_deleted',
             `Comment deleted from "${product?.name || 'Unknown'}"`,
@@ -246,7 +236,6 @@ class CommentService {
         const updatedComment = await commentRepository.likeComment(commentId, userId);
         if (!updatedComment) throw new Error('Comment not found');
 
-        // Get user and product info for notification
         const user = await commentRepository.getUserById(userId);
         const product = await commentRepository.getProductById(updatedComment.productId);
 
@@ -257,7 +246,6 @@ class CommentService {
                 likes: updatedComment.likes,
             });
 
-            // Notify admin about comment like
             if (user && product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_liked',
@@ -289,7 +277,6 @@ class CommentService {
         const updatedComment = await commentRepository.unlikeComment(commentId, userId);
         if (!updatedComment) throw new Error('Comment not found');
 
-        // Get user and product info for notification
         const user = await commentRepository.getUserById(userId);
         const product = await commentRepository.getProductById(updatedComment.productId);
 
@@ -300,7 +287,6 @@ class CommentService {
                 likes: updatedComment.likes,
             });
 
-            // Notify admin about comment unlike
             if (user && product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_unliked',
@@ -337,7 +323,6 @@ class CommentService {
 
         const updatedComment = await commentRepository.updateReactions(commentId, reactions);
 
-        // Get product info for notification
         const product = await commentRepository.getProductById(updatedComment.productId);
 
         const socket = getIO();
@@ -347,7 +332,6 @@ class CommentService {
                 reactions: updatedComment.reactions,
             });
 
-            // Notify admin about comment reaction
             if (product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_reacted',
@@ -379,7 +363,6 @@ class CommentService {
         return await commentRepository.getCommentsByProductId(productId);
     }
 
-    // ADDED: Missing methods that controller is trying to call
     static async getComments(productId) {
         return await this.getCommentsByProduct(productId);
     }
@@ -401,23 +384,22 @@ class CommentService {
         const comment = await commentRepository.getCommentById(commentId);
         if (!comment) throw new Error('Comment not found');
 
-        // Find existing reaction for this emoji
         let reactionIndex = comment.reactions.findIndex(r => r.emoji === emoji);
         let actionType = 'added';
 
         if (reactionIndex === -1) {
-            // Add new reaction
+
             comment.reactions.push({ emoji, users: [userId] });
         } else {
-            // Check if user already reacted with this emoji
+
             const userIndex = comment.reactions[reactionIndex].users.indexOf(userId);
             if (userIndex === -1) {
                 comment.reactions[reactionIndex].users.push(userId);
             } else {
-                // User already reacted, remove their reaction
+               n
                 comment.reactions[reactionIndex].users.splice(userIndex, 1);
                 actionType = 'removed';
-                // If no users left for this emoji, remove the emoji reaction
+
                 if (comment.reactions[reactionIndex].users.length === 0) {
                     comment.reactions.splice(reactionIndex, 1);
                 }
@@ -426,7 +408,6 @@ class CommentService {
 
         const updatedComment = await commentRepository.updateReactions(commentId, comment.reactions);
 
-        // Get user and product info for notification
         const user = await commentRepository.getUserById(userId);
         const product = await commentRepository.getProductById(comment.productId);
 
@@ -437,7 +418,6 @@ class CommentService {
                 reactions: updatedComment.reactions,
             });
 
-            // Notify admin about emoji reaction
             if (user && product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_emoji_reaction',
@@ -471,7 +451,6 @@ class CommentService {
         const comment = await commentRepository.getCommentById(commentId);
         if (!comment) throw new Error('Comment not found');
 
-        // Remove user from all reactions
         comment.reactions.forEach(reaction => {
             const userIndex = reaction.users.indexOf(userId);
             if (userIndex !== -1) {
@@ -479,12 +458,10 @@ class CommentService {
             }
         });
 
-        // Remove empty reactions
         comment.reactions = comment.reactions.filter(reaction => reaction.users.length > 0);
 
         const updatedComment = await commentRepository.updateReactions(commentId, comment.reactions);
 
-        // Get user and product info for notification
         const user = await commentRepository.getUserById(userId);
         const product = await commentRepository.getProductById(comment.productId);
 
@@ -495,7 +472,6 @@ class CommentService {
                 reactions: updatedComment.reactions,
             });
 
-            // Notify admin about reaction removal
             if (user && product) {
                 socket.to('adminRoom').emit('adminNotification', {
                     type: 'comment_reactions_removed',

@@ -1,6 +1,7 @@
 const Rating = require('../models/ratingModel');
 
 class RatingRepository {
+
     async createOrUpdateRating(userId, productId, ratingValue, comment, userName, userEmail) {
         return Rating.findOneAndUpdate(
             { user: userId, product: productId },

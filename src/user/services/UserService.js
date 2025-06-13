@@ -122,22 +122,18 @@ class UserService {
     }
 
     static async handleUserSessionData(userId, guestId) {
-        console.log(`🔄 Starting session data merge for user ${userId} with guest ${guestId}`);
+
 
         try {
             if (guestId) {
-                // Merge cart data
-                await CartService.mergeGuestCartWithUserCart(guestId, userId);
 
-                // Merge recent views
+                await CartService.mergeGuestCartWithUserCart(guestId, userId);
                 await RecentViewService.mergeGuestRecentViewsWithUser(guestId, userId);
 
-                console.log(`✅ Session data merge completed for user ${userId}`);
             }
         } catch (error) {
             console.error(`❌ Error merging session data for user ${userId}:`, error);
-            // Don't throw the error here to prevent login failure
-            // Log it for debugging but allow login to proceed
+
         }
     }
 

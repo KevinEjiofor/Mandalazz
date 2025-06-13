@@ -36,7 +36,6 @@ class CheckoutService {
             return this._processOnlinePayment(user, userDetails, cart, estimatedDelivery, cancellationDeadline);
         }
 
-        // Payment on delivery path
         const payload = {
             user: userId,
             products: cart.items,
@@ -52,7 +51,7 @@ class CheckoutService {
 
         const checkout = await CheckoutRepo.create(payload);
         await CartService.clearCart(userId);
-        this._notifyUserAndAdmin(user, checkout, 'payment on delivery');
+        this._notifyUserAndAdmin(user, checkout, 'payment_on_delivery');
         return checkout;
     }
 
@@ -61,7 +60,9 @@ class CheckoutService {
         if (isNaN(amount) || amount <= 0) throw new Error('Invalid total amount');
 
         const reference = `ref_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
         const checkout = await CheckoutRepo.create({
+            user: user._id,
             products: cart.items,
             totalAmount: amount,
             userDetails,
@@ -76,8 +77,8 @@ class CheckoutService {
         const { data: { authorization_url } = {} } = await initializePayment(userDetails.email, amount, { reference });
         if (!authorization_url) throw new Error('Payment initialization failed');
 
-        await CartService.clearCart(user.id);
-        this._notifyUserAndAdmin(user, checkout, 'online payment', reference);
+        await CartService.clearCart(user._id);
+        this._notifyUserAndAdmin(user, checkout, 'online_payment', reference);
 
         return { checkout, paymentUrl: authorization_url };
     }
@@ -90,7 +91,8 @@ class CheckoutService {
         const updated = await CheckoutRepo.updateStatus(checkout._id, { paymentStatus: newStatus });
         const user = await User.findById(updated.user).catch(() => null);
 
-        this._notifyUserAndAdmin(user, updated, 'payment status update');
+        this._notifyUserAndAdmin(user, updated, 'payment_status_update');
+
         if (updated.paymentStatus === 'paid') {
             await userNotifications(updated.userDetails.email, 'Payment Successful', 'Your payment has been confirmed. Delivery within 3–7 days.');
         }
@@ -99,7 +101,7 @@ class CheckoutService {
     }
 
     static async updatePaymentStatus(checkoutId, paymentStatus) {
-        if (!['paid','failed'].includes(paymentStatus)) throw new Error('Invalid payment status');
+        if (!['paid', 'failed'].includes(paymentStatus)) throw new Error('Invalid payment status');
         const existing = await CheckoutRepo.findById(checkoutId);
         if (!existing) throw new Error('Checkout not found');
         if (existing.paymentType !== 'payment_on_delivery') throw new Error('Not POD type');
@@ -107,7 +109,7 @@ class CheckoutService {
 
         const updated = await CheckoutRepo.updateStatus(checkoutId, { paymentStatus });
         const user = await User.findById(updated.user);
-        this._notifyUserAndAdmin(user, updated, 'payment status update');
+        this._notifyUserAndAdmin(user, updated, 'payment_status_update');
         return updated;
     }
 
@@ -118,7 +120,7 @@ class CheckoutService {
         const updated = await CheckoutRepo.updateStatus(checkoutId, { deliveryStatus: newDeliveryStatus });
         const user = await User.findById(updated.user);
         await userNotifications(updated.userDetails.email, 'Delivery Status Update', `Your delivery status is now: ${newDeliveryStatus}`);
-        this._notifyUserAndAdmin(user, updated, 'delivery status update');
+        this._notifyUserAndAdmin(user, updated, 'delivery_status_update');
         return updated;
     }
 
@@ -130,7 +132,7 @@ class CheckoutService {
 
         await CheckoutRepo.deleteById(checkoutId);
         const user = await User.findById(checkout.user);
-        this._notifyUserAndAdmin(user, checkout, 'checkout cancelled');
+        this._notifyUserAndAdmin(user, checkout, 'checkout_cancelled');
         return checkout;
     }
 
@@ -152,11 +154,11 @@ class CheckoutService {
     }
 
     static _notifyUserAndAdmin(user, checkout, eventType, reference = null) {
-
         const socket = getIO();
-        const msg = `${user.firstName} ${user.lastName} ${eventType.replace(/_/g,' ')} for checkout ${checkout._id}`;
+        const message = `${user.firstName} ${user.lastName} - ${eventType.replace(/_/g, ' ')} - Checkout ${checkout._id}`;
         const payload = {
             checkoutId: checkout._id,
+            userId: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
             paymentType: checkout.paymentType,
@@ -166,13 +168,17 @@ class CheckoutService {
             ...(reference && { paymentReference: reference }),
         };
 
-        if (socket) socket.to('adminRoom').emit('adminNotification', {
-            type: eventType,
-            message: msg,
-            data: payload,
-        });
+        // Send to admin via socket
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: eventType,
+                message,
+                data: payload
+            });
+        }
 
-        NotificationService.addNotification(eventType, msg, payload);
+        // Persist admin notification
+        NotificationService.addNotification(eventType, message, payload);
     }
 }
 

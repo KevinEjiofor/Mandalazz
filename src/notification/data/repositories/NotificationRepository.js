@@ -2,8 +2,8 @@ const Notification = require('../model/notificationModel');
 
 class NotificationRepository {
 
-    static async create(data) {
-        const notification = new Notification(data);
+    static async create(notificationData) {
+        const notification = new Notification(notificationData);
         return await notification.save();
     }
 
