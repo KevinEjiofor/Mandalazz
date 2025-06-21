@@ -13,9 +13,6 @@ const authMiddleware = async (req, res, next) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
 
-
-
-
         if (decoded.role === 'admin') {
             const admin = await Admin.findById(decoded.id);
             if (!admin) {
@@ -41,4 +38,21 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
+const authorize = (roles) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ message: 'Insufficient permissions' });
+        }
+
+        next();
+    };
+};
+
+// Export both ways to support different import styles
 module.exports = authMiddleware;
+module.exports.authenticate = authMiddleware;
+module.exports.authorize = authorize;

@@ -16,7 +16,10 @@ const commentRoutes = require('./routes/commentRoutes');
 const recentViewRoutes = require('./routes/recentViewRoutes');
 const ratingRoutes = require('./routes/ratingRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const locationRoutes = require('./routes/locationRoutes');
+const addressRoutes = require('./routes/addressRoutes.');
 const guestMiddleware = require('./middlewares/guestMiddleware');
+
 
 const { scheduleEmailVerificationReminders } = require('./utils/scheduledTasks');
 const { initializeWebSocket } = require('./utils/socketHandler');
@@ -82,6 +85,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/rate', ratingRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/recentview', recentViewRoutes);
+app.use('/api/address', addressRoutes);
+
+app.use('/api/location', locationRoutes);
 
 // ✅ Root Route — to avoid 404 on base domain
 app.get('/', (req, res) => {
