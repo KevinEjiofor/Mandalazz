@@ -118,6 +118,87 @@ class UserController {
             sendErrorResponse(res, error.message);
         }
     }
+
+    static async updateProfile(req, res) {
+        try {
+
+            if (!req.user) {
+                return sendErrorResponse(res, 'Authentication required', 401);
+            }
+
+            const {id: userId } = req.user;
+
+            if (!userId) {
+                return sendErrorResponse(res, 'User ID not found in token', 401);
+            }
+
+
+            const { firstName, lastName, email, phoneNumber, alternateNumber } = req.body;
+
+            const updateData = {
+                firstName,
+                lastName,
+                email,
+                phoneNumber,
+                alternateNumber
+            };
+
+            const updatedUser = await UserService.updateUserProfile(userId, updateData);
+
+            sendSuccessResponse(res, {
+                message: 'Profile updated successfully',
+                // user: updatedUser
+            });
+        } catch (error) {
+
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    static async getProfile(req, res) {
+        try {
+
+            if (!req.user) {
+                return sendErrorResponse(res, 'Authentication required', 401);
+            }
+
+            const { id:userId } = req.user;
+
+            if (!userId) {
+                return sendErrorResponse(res, 'User ID not found in token', 401);
+            }
+
+
+            const user = await UserService.getUserProfile(userId);
+
+            sendSuccessResponse(res, { user });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    static async getProfileForUser(req, res) {
+        try {
+
+            if (!req.user) {
+                return sendErrorResponse(res, 'Authentication required', 401);
+            }
+
+            const { id:userId } = req.user;
+
+            if (!userId) {
+                return sendErrorResponse(res, 'User ID not found in token', 401);
+            }
+
+
+            const user = await UserService.getUserProfileforUser(userId);
+
+            sendSuccessResponse(res, { user });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
 }
 
 module.exports = UserController;

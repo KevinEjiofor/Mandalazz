@@ -148,7 +148,7 @@ const checkoutSchema = new mongoose.Schema({
     timestamps: true,
     toJSON: {
         transform: function(doc, ret) {
-            // Convert Decimal128 to number for JSON response
+
             if (ret.totalAmount) {
                 ret.totalAmount = parseFloat(ret.totalAmount.toString());
             }
@@ -157,21 +157,21 @@ const checkoutSchema = new mongoose.Schema({
     }
 });
 
-// Indexes for better query performance
+
 checkoutSchema.index({ user: 1, createdAt: -1 });
-checkoutSchema.index({ paymentReference: 1 });
+
 checkoutSchema.index({ 'userDetails.email': 1 });
 checkoutSchema.index({ 'userDetails.country.name': 1 });
 checkoutSchema.index({ 'userDetails.city': 1 });
 checkoutSchema.index({ paymentStatus: 1 });
 checkoutSchema.index({ deliveryStatus: 1 });
 
-// Virtual for customer full name
+
 checkoutSchema.virtual('customerName').get(function() {
     return `${this.userDetails.firstName} ${this.userDetails.lastName}`;
 });
 
-// Virtual for delivery address summary
+
 checkoutSchema.virtual('deliveryAddressSummary').get(function() {
     const parts = [
         this.userDetails.address,
@@ -184,57 +184,11 @@ checkoutSchema.virtual('deliveryAddressSummary').get(function() {
     return parts.join(', ');
 });
 
-// Method to check if checkout can be cancelled
+
 checkoutSchema.methods.canBeCancelled = function() {
     return new Date() <= new Date(this.cancellationDeadline) &&
         this.paymentStatus !== 'paid' &&
         this.deliveryStatus === CheckoutStatus.PENDING;
 };
 
-// Method to check if checkout is delivered
-checkoutSchema.methods.isDelivered = function() {
-    return this.deliveryStatus === CheckoutStatus.DELIVERED;
-};
-
-// Static method to get location statistics
-checkoutSchema.statics.getLocationStats = function() {
-    return this.aggregate([
-        {
-            $group: {
-                _id: {
-                    country: '$userDetails.country.name',
-                    city: '$userDetails.city'
-                },
-                totalOrders: { $sum: 1 },
-                totalAmount: { $sum: { $toDouble: '$totalAmount' } },
-                paidOrders: {
-                    $sum: {
-                        $cond: [{ $eq: ['$paymentStatus', 'paid'] }, 1, 0]
-                    }
-                },
-                pendingOrders: {
-                    $sum: {
-                        $cond: [{ $eq: ['$paymentStatus', 'pending'] }, 1, 0]
-                    }
-                }
-            }
-        },
-        {
-            $project: {
-                _id: 0,
-                country: '$_id.country',
-                city: '$_id.city',
-                totalOrders: 1,
-                totalAmount: 1,
-                paidOrders: 1,
-                pendingOrders: 1,
-                averageOrderValue: { $divide: ['$totalAmount', '$totalOrders'] }
-            }
-        },
-        {
-            $sort: { totalOrders: -1 }
-        }
-    ]);
-};
-
-module.exports = mongoose.model('Checkout', checkoutSchema);
+checkoutSchema.methods

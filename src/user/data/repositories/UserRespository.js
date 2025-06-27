@@ -1,4 +1,6 @@
+const mongoose = require('mongoose')
 const User = require("../models/userModel");
+
 
 class UserRepository {
     async createUser(firstName, lastName, email, password) {
@@ -9,6 +11,17 @@ class UserRepository {
 
     async findUserById(id) {
         return User.findById(id).select('-password');
+    }
+
+    async updateUserProfile(userId, updateData) {
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!user) throw new Error('User not found');
+        return user;
     }
 
     async logUserActivity(userId, action) {
@@ -29,6 +42,13 @@ class UserRepository {
         return User.findOne({ email });
     }
 
+    async checkEmailExists(email, excludeUserId = null) {
+        const query = { email };
+        if (excludeUserId) {
+            query._id = { $ne: excludeUserId };
+        }
+        return User.findOne(query);
+    }
 }
 
 module.exports = new UserRepository();

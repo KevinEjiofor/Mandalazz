@@ -148,6 +148,76 @@ class UserService {
     static async getUserActivityLogs(userId) {
         return await UserRepository.getUserActivityLogs(userId);
     }
+
+
+
+    static async updateUserProfile(userId, updateData) {
+        const { firstName, lastName, email, phoneNumber, alternateNumber } = updateData;
+
+
+        const fieldsToUpdate = {};
+
+        if (firstName !== undefined && firstName.trim()) {
+            fieldsToUpdate.firstName = firstName.trim();
+        }
+
+        if (lastName !== undefined && lastName.trim()) {
+            fieldsToUpdate.lastName = lastName.trim();
+        }
+
+        if (email !== undefined && email.trim()) {
+
+            const existingUser = await UserRepository.checkEmailExists(email.trim(), userId);
+            if (existingUser) {
+                throw new Error('Email already exists');
+            }
+            fieldsToUpdate.email = email.trim();
+
+            fieldsToUpdate.emailVerified = false;
+        }
+
+        if (phoneNumber !== undefined) {
+            fieldsToUpdate.phoneNumber = phoneNumber ? phoneNumber.trim() : null;
+        }
+
+        if (alternateNumber !== undefined) {
+            fieldsToUpdate.alternateNumber = alternateNumber ? alternateNumber.trim() : null;
+        }
+
+
+        if (Object.keys(fieldsToUpdate).length === 0) {
+            throw new Error('No valid fields provided for update');
+        }
+
+        const updatedUser = await UserRepository.updateUserProfile(userId, fieldsToUpdate);
+
+
+        await UserRepository.logUserActivity(userId, 'Profile updated');
+
+        return updatedUser;
+    }
+
+    static async getUserProfile(userId) {
+        const user = await UserRepository.findUserById(userId);
+        if (!user) throw new Error('User not found');
+        return user;
+    }
+    static async getUserProfileforUser(userId) {
+        const user = await UserRepository.findUserById(userId);
+        if (!user) throw new Error('User not found');
+
+
+        return {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            phoneNumber: user.phoneNumber || null,
+            alternateNumber: user.alternateNumber || null,
+            emailVerified: user.emailVerified,
+            role: user.role,
+            memberSince: user.createdAt
+        };
+    }
 }
 
 module.exports = UserService;

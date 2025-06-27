@@ -14,5 +14,9 @@ router.post('/verify-email', userController.verifyEmail);
 router.post('/resend-verification', userController.resendVerificationEmail);
 router.get('/verification-status', authMiddleware, userController.checkEmailVerificationStatus);
 
+router.get('/profile', authMiddleware, userController.getProfile);
+router.get('/profileforuser', authMiddleware, userController.getProfileForUser);
+router.put('/profile', authMiddleware, userController.updateProfile);
+
 
 module.exports = router;

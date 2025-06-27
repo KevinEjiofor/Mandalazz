@@ -1,4 +1,3 @@
-// data/repos/checkoutRepository.js
 const Checkout = require('../models/checkoutModel');
 
 class CheckoutRepository {

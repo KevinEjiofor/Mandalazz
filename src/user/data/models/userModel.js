@@ -7,14 +7,14 @@ const userSchema = new mongoose.Schema({
         required: [true, 'First name is required'],
         trim: true,
         minlength: [2, 'First name must be at least 2 characters long'],
-        match: [/^[A-Za-z]+$/, 'First name can only contain alphabets']
+        match: [/^[A-Za-z\s]+$/, 'First name can only contain alphabets and spaces']
     },
     lastName: {
         type: String,
         required: [true, 'Last name is required'],
         trim: true,
         minlength: [2, 'Last name must be at least 2 characters long'],
-        match: [/^[A-Za-z]+$/, 'Last name can only contain alphabets']
+        match: [/^[A-Za-z\s]+$/, 'Last name can only contain alphabets and spaces']
     },
     email: {
         type: String,
@@ -28,6 +28,18 @@ const userSchema = new mongoose.Schema({
         required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters long'],
         trim: true
+    },
+    phoneNumber: {
+        type: String,
+        trim: true,
+        match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number'],
+        default: null
+    },
+    alternateNumber: {
+        type: String,
+        trim: true,
+        match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid alternate phone number'],
+        default: null
     },
     role: {
         type: String,
@@ -60,8 +72,6 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: null
     }
-
-
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

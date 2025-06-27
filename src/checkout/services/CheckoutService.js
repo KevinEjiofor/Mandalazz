@@ -10,13 +10,13 @@ const CheckoutStatus = require('../../config/checkoutStatus');
 
 class CheckoutService {
     static validateDetails(userDetails, paymentType) {
-        // Check if addressId is provided (preferred method)
+
         if (userDetails.addressId) {
             if (!userDetails.addressId.match(/^[0-9a-fA-F]{24}$/)) {
                 throw new Error('Invalid address ID format');
             }
         } else {
-            // Fallback to manual details validation
+
             if (!userDetails?.address || !userDetails?.phoneNumber || !userDetails?.email) {
                 throw new Error('Complete user details required (address, phoneNumber, email) or provide addressId');
             }
@@ -25,7 +25,7 @@ class CheckoutService {
                 throw new Error('First name and last name are required');
             }
 
-            // Validate location data if provided
+
             if (userDetails.location) {
                 const { lat, lng } = userDetails.location;
                 if ((lat !== undefined && isNaN(lat)) || (lng !== undefined && isNaN(lng))) {
@@ -49,10 +49,10 @@ class CheckoutService {
         const cart = await CartService.getCart(userId);
         if (!cart?.items?.length) throw new Error('Cart is empty.');
 
-        // Get address details
+
         let addressDetails;
         if (userDetails.addressId) {
-            // Use saved address
+
             const address = await AddressService.getAddressById(userDetails.addressId, userId);
             if (!address) throw new Error('Selected address not found');
 
@@ -75,7 +75,7 @@ class CheckoutService {
                 postalCode: address.postalCode
             };
         } else {
-            // Use provided details (validate with Google Maps if coordinates provided)
+
             addressDetails = {
                 firstName: userDetails.firstName,
                 lastName: userDetails.lastName,
@@ -90,7 +90,7 @@ class CheckoutService {
                 postalCode: userDetails.postalCode
             };
 
-            // Validate and enrich address with Google Maps if location data is incomplete
+
             if (userDetails.location?.lat && userDetails.location?.lng && !userDetails.country) {
                 try {
                     const GoogleMapsService = require('../../utils/googleMapsService');
@@ -280,7 +280,7 @@ class CheckoutService {
             ...(reference && { paymentReference: reference }),
         };
 
-        // Send to admin via socket
+
         if (socket) {
             socket.to('adminRoom').emit('adminNotification', {
                 type: eventType,
@@ -289,7 +289,7 @@ class CheckoutService {
             });
         }
 
-        // Persist admin notification
+
         NotificationService.addNotification(eventType, message, payload);
     }
 
