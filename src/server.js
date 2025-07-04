@@ -44,7 +44,10 @@ scheduleEmailVerificationReminders();
 
 // ✅ CORS setup (before routes and sessions)
 const corsOptions = {
-    origin: ['https://mandalazz-frontend-vqm8.vercel.app', 'http://localhost:3000', 'http://192.168.0.7:3000',
+    origin: ['https://mandalazz-frontend-vqm8.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://192.168.0.7:3000',
         'http://192.168.0.7:3001', ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
@@ -65,7 +68,7 @@ app.use(session({
         collectionName: 'sessions'
     }),
     cookie: {
-        secure: false, // change to true if using HTTPS in production
+        secure: false,
         httpOnly: true,
         sameSite: 'lax',
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days

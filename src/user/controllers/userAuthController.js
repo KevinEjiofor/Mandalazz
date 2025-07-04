@@ -191,7 +191,7 @@ class UserController {
             }
 
 
-            const user = await UserService.getUserProfileforUser(userId);
+            const user = await UserService.getUserProfileForUser(userId);
 
             sendSuccessResponse(res, { user });
         } catch (error) {

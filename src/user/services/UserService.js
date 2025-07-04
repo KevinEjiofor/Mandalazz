@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const UserRepository = require('../data/repositories/UserRespository');
+const UserRepository = require('../data/repositories/UserRepository');
 const { checkIfUserExists } = require('../../utils/validation');
 const { sendEmail } = require('../../utils/emailHandler');
 const { generateResetToken } = require('../../utils/tokenGenerator');
@@ -202,7 +202,7 @@ class UserService {
         if (!user) throw new Error('User not found');
         return user;
     }
-    static async getUserProfileforUser(userId) {
+    static async getUserProfileForUser(userId) {
         const user = await UserRepository.findUserById(userId);
         if (!user) throw new Error('User not found');
 
