@@ -9,39 +9,67 @@ const NotificationService = require('../../notification/service/NotificationServ
 const CheckoutStatus = require('../../config/checkoutStatus');
 
 class CheckoutService {
-    static validateDetails(userDetails, paymentType) {
+    static validateCheckoutRequest(userDetails, paymentType) {
+        if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
+            throw new Error('Invalid payment type');
+        }
 
         if (userDetails.addressId) {
             if (!userDetails.addressId.match(/^[0-9a-fA-F]{24}$/)) {
                 throw new Error('Invalid address ID format');
             }
-        } else {
+            return;
+        }
 
-            if (!userDetails?.address || !userDetails?.phoneNumber || !userDetails?.email) {
-                throw new Error('Complete user details required (address, phoneNumber, email) or provide addressId');
-            }
-
-            if (!userDetails?.firstName || !userDetails?.lastName) {
-                throw new Error('First name and last name are required');
-            }
-
-
-            if (userDetails.location) {
-                const { lat, lng } = userDetails.location;
-                if ((lat !== undefined && isNaN(lat)) || (lng !== undefined && isNaN(lng))) {
-                    throw new Error('Invalid location coordinates');
-                }
+        const requiredFields = ['firstName', 'lastName', 'address', 'phoneNumber', 'email'];
+        for (const field of requiredFields) {
+            if (!userDetails[field]) {
+                throw new Error(`${field} is required`);
             }
         }
 
-        if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
-            throw new Error('Invalid payment type');
+        if (userDetails.location) {
+            const { lat, lng } = userDetails.location;
+            if ((lat !== undefined && isNaN(lat)) || (lng !== undefined && isNaN(lng))) {
+                throw new Error('Invalid location coordinates');
+            }
         }
+    }
+
+    static async getOrCreateAddressDetails(userDetails, userId) {
+        if (userDetails.addressId) {
+            const address = await AddressService.getAddressById(userDetails.addressId, userId);
+            if (!address) throw new Error('Selected address not found');
+
+            const {
+                firstName, lastName, address: addr, landmark,
+                phoneNumber, email, location,
+                country, city, state, postalCode
+            } = address;
+
+            return {
+                firstName, lastName, address: addr, landmark,
+                phoneNumber, email, location, country, city, state, postalCode
+            };
+        }
+
+        return await AddressService.createAddress(userId, userDetails);
+    }
+
+    static calculateDeliveryDates(paymentType) {
+        const estimatedDelivery = new Date();
+        estimatedDelivery.setDate(estimatedDelivery.getDate() + 7);
+
+        const cancelDays = paymentType === 'online_payment' ? 1 : 2;
+        const cancellationDeadline = new Date(Date.now() + cancelDays * 86400000);
+
+        return { estimatedDelivery, cancellationDeadline };
     }
 
     static async createCheckout(userId, { userDetails, paymentType }) {
         if (!userId) throw new Error('Only logged-in users can perform checkout');
-        this.validateDetails(userDetails, paymentType);
+
+        this.validateCheckoutRequest(userDetails, paymentType);
 
         const user = await User.findById(userId);
         if (!user) throw new Error('User not found');
@@ -49,79 +77,19 @@ class CheckoutService {
         const cart = await CartService.getCart(userId);
         if (!cart?.items?.length) throw new Error('Cart is empty.');
 
-
-        let addressDetails;
-        if (userDetails.addressId) {
-
-            const address = await AddressService.getAddressById(userDetails.addressId, userId);
-            if (!address) throw new Error('Selected address not found');
-
-            addressDetails = {
-                firstName: address.firstName,
-                lastName: address.lastName,
-                address: address.address,
-                landmark: address.landmark,
-                phoneNumber: address.phoneNumber,
-                email: address.email,
-                location: {
-                    lat: address.location.lat,
-                    lng: address.location.lng,
-                    placeId: address.location.placeId,
-                    formattedAddress: address.location.formattedAddress
-                },
-                country: address.country,
-                city: address.city,
-                state: address.state,
-                postalCode: address.postalCode
-            };
-        } else {
-
-            addressDetails = {
-                firstName: userDetails.firstName,
-                lastName: userDetails.lastName,
-                address: userDetails.address,
-                landmark: userDetails.landmark,
-                phoneNumber: userDetails.phoneNumber,
-                email: userDetails.email,
-                location: userDetails.location,
-                country: userDetails.country,
-                city: userDetails.city,
-                state: userDetails.state,
-                postalCode: userDetails.postalCode
-            };
-
-
-            if (userDetails.location?.lat && userDetails.location?.lng && !userDetails.country) {
-                try {
-                    const GoogleMapsService = require('../../utils/googleMapsService');
-                    const locationData = await GoogleMapsService.reverseGeocode(
-                        userDetails.location.lat,
-                        userDetails.location.lng
-                    );
-
-                    addressDetails.location.formattedAddress = locationData.formattedAddress;
-                    addressDetails.location.placeId = locationData.placeId;
-                    addressDetails.country = locationData.country;
-                    addressDetails.city = locationData.city?.name;
-                    addressDetails.state = locationData.state?.name;
-                    addressDetails.postalCode = locationData.postalCode?.name;
-                } catch (error) {
-                    console.warn('Failed to enrich address with Google Maps:', error.message);
-                }
-            }
-        }
-
-        const estimatedDelivery = new Date();
-        estimatedDelivery.setDate(estimatedDelivery.getDate() + 7);
-        const cancelDays = paymentType === 'online_payment' ? 1 : 2;
-        const cancellationDeadline = new Date(Date.now() + cancelDays * 86400000);
+        const addressDetails = await this.getOrCreateAddressDetails(userDetails, userId);
+        const { estimatedDelivery, cancellationDeadline } = this.calculateDeliveryDates(paymentType);
 
         if (paymentType === 'online_payment') {
             return this._processOnlinePayment(user, addressDetails, cart, estimatedDelivery, cancellationDeadline);
         }
 
+        return this._processPaymentOnDelivery(user, addressDetails, cart, estimatedDelivery, cancellationDeadline);
+    }
+
+    static async _processPaymentOnDelivery(user, addressDetails, cart, estimatedDelivery, cancellationDeadline) {
         const payload = {
-            user: userId,
+            user: user._id,
             products: cart.items,
             totalAmount: cart.totalAmount,
             userDetails: addressDetails,
@@ -130,12 +98,13 @@ class CheckoutService {
             deliveryStatus: CheckoutStatus.PENDING,
             estimatedDeliveryDate: estimatedDelivery,
             cancellationDeadline,
-            paymentReference: null,
+            // paymentReference: null,
         };
 
         const checkout = await CheckoutRepo.create(payload);
-        await CartService.clearCart(userId);
+        await CartService.clearCart(user._id);
         this._notifyUserAndAdmin(user, checkout, 'payment_on_delivery');
+
         return checkout;
     }
 
@@ -158,11 +127,7 @@ class CheckoutService {
             cancellationDeadline,
         });
 
-        const { data: { authorization_url } = {} } = await initializePayment(
-            addressDetails.email,
-            amount,
-            { reference }
-        );
+        const { data: { authorization_url } = {} } = await initializePayment(addressDetails.email, amount, { reference });
         if (!authorization_url) throw new Error('Payment initialization failed');
 
         await CartService.clearCart(user._id);
@@ -193,21 +158,33 @@ class CheckoutService {
     }
 
     static async updatePaymentStatus(checkoutId, paymentStatus) {
-        if (!['paid', 'failed'].includes(paymentStatus)) throw new Error('Invalid payment status');
+        if (!['paid', 'failed'].includes(paymentStatus)) {
+            throw new Error('Invalid payment status');
+        }
+
         const existing = await CheckoutRepo.findById(checkoutId);
         if (!existing) throw new Error('Checkout not found');
-        if (existing.paymentType !== 'payment_on_delivery') throw new Error('Not POD type');
-        if (existing.paymentStatus === 'paid') throw new Error('Already paid');
+
+        if (existing.paymentType !== 'payment_on_delivery') {
+            throw new Error('Payment status can only be updated for payment on delivery orders');
+        }
+
+        if (existing.paymentStatus === 'paid') {
+            throw new Error('Order is already paid');
+        }
 
         const updated = await CheckoutRepo.updateStatus(checkoutId, { paymentStatus });
         const user = await User.findById(updated.user);
         this._notifyUserAndAdmin(user, updated, 'payment_status_update');
+
         return updated;
     }
 
     static async updateDeliveryStatus(checkoutId, newDeliveryStatus) {
         const validStatuses = Object.values(CheckoutStatus);
-        if (!validStatuses.includes(newDeliveryStatus)) throw new Error('Invalid delivery status');
+        if (!validStatuses.includes(newDeliveryStatus)) {
+            throw new Error('Invalid delivery status');
+        }
 
         const updated = await CheckoutRepo.updateStatus(checkoutId, { deliveryStatus: newDeliveryStatus });
         const user = await User.findById(updated.user);
@@ -225,12 +202,19 @@ class CheckoutService {
     static async cancelCheckout(checkoutId) {
         const checkout = await CheckoutRepo.findById(checkoutId);
         if (!checkout) throw new Error('Checkout not found');
-        if (new Date() > new Date(checkout.cancellationDeadline)) throw new Error('Cancellation deadline passed');
-        if (checkout.paymentStatus === 'paid') throw new Error('Cannot cancel a paid checkout');
+
+        if (new Date() > new Date(checkout.cancellationDeadline)) {
+            throw new Error('Cancellation deadline has passed');
+        }
+
+        if (checkout.paymentStatus === 'paid') {
+            throw new Error('Cannot cancel a paid checkout');
+        }
 
         await CheckoutRepo.deleteById(checkoutId);
         const user = await User.findById(checkout.user);
         this._notifyUserAndAdmin(user, checkout, 'checkout_cancelled');
+
         return checkout;
     }
 
@@ -242,8 +226,13 @@ class CheckoutService {
         return CheckoutRepo.find();
     }
 
+    static getUserCheckouts(userId) {
+        return CheckoutRepo.find({ user: userId });
+    }
+
     static searchCheckouts(params) {
         const query = {};
+
         if (params.email) query['userDetails.email'] = { $regex: params.email, $options: 'i' };
         if (params.firstName) query['userDetails.firstName'] = { $regex: params.firstName, $options: 'i' };
         if (params.lastName) query['userDetails.lastName'] = { $regex: params.lastName, $options: 'i' };
@@ -252,50 +241,7 @@ class CheckoutService {
         if (params.deliveryStatus) query.deliveryStatus = params.deliveryStatus;
         if (params.country) query['userDetails.country.name'] = { $regex: params.country, $options: 'i' };
         if (params.city) query['userDetails.city'] = { $regex: params.city, $options: 'i' };
-        return CheckoutRepo.find(query);
-    }
 
-    static _notifyUserAndAdmin(user, checkout, eventType, reference = null) {
-        const socket = getIO();
-        const customerName = checkout.userDetails ?
-            `${checkout.userDetails.firstName} ${checkout.userDetails.lastName}` :
-            `${user.firstName} ${user.lastName}`;
-
-        const message = `${customerName} - ${eventType.replace(/_/g, ' ')} - Checkout ${checkout._id}`;
-
-        const payload = {
-            checkoutId: checkout._id,
-            userId: user._id,
-            customerName,
-            firstName: checkout.userDetails?.firstName || user.firstName,
-            lastName: checkout.userDetails?.lastName || user.lastName,
-            email: checkout.userDetails?.email || user.email,
-            address: checkout.userDetails?.address,
-            country: checkout.userDetails?.country?.name,
-            city: checkout.userDetails?.city,
-            paymentType: checkout.paymentType,
-            paymentStatus: checkout.paymentStatus,
-            deliveryStatus: checkout.deliveryStatus,
-            totalAmount: checkout.totalAmount,
-            ...(reference && { paymentReference: reference }),
-        };
-
-
-        if (socket) {
-            socket.to('adminRoom').emit('adminNotification', {
-                type: eventType,
-                message,
-                data: payload
-            });
-        }
-
-
-        NotificationService.addNotification(eventType, message, payload);
-    }
-
-
-    static async getUserCheckouts(userId) {
-        const query = { user: userId };
         return CheckoutRepo.find(query);
     }
 
@@ -330,6 +276,42 @@ class CheckoutService {
         });
 
         return Object.values(locationStats);
+    }
+
+    static _notifyUserAndAdmin(user, checkout, eventType, reference = null) {
+        const socket = getIO();
+        const customerName = checkout.userDetails
+            ? `${checkout.userDetails.firstName} ${checkout.userDetails.lastName}`
+            : `${user.firstName} ${user.lastName}`;
+
+        const message = `${customerName} - ${eventType.replace(/_/g, ' ')} - Checkout ${checkout._id}`;
+
+        const payload = {
+            checkoutId: checkout._id,
+            userId: user._id,
+            customerName,
+            firstName: checkout.userDetails?.firstName || user.firstName,
+            lastName: checkout.userDetails?.lastName || user.lastName,
+            email: checkout.userDetails?.email || user.email,
+            address: checkout.userDetails?.address,
+            country: checkout.userDetails?.country?.name,
+            city: checkout.userDetails?.city,
+            paymentType: checkout.paymentType,
+            paymentStatus: checkout.paymentStatus,
+            deliveryStatus: checkout.deliveryStatus,
+            totalAmount: checkout.totalAmount,
+            ...(reference && { paymentReference: reference }),
+        };
+
+        if (socket) {
+            socket.to('adminRoom').emit('adminNotification', {
+                type: eventType,
+                message,
+                data: payload
+            });
+        }
+
+        NotificationService.addNotification(eventType, message, payload);
     }
 }
 

@@ -36,13 +36,11 @@ if (!process.env.MONGO_URI) {
 }
 connectDB();
 
-// Initialize WebSocket
+
 initializeWebSocket(server);
 
-// Run scheduled tasks
 scheduleEmailVerificationReminders();
 
-// ✅ CORS setup (before routes and sessions)
 const corsOptions = {
     origin: ['https://mandalazz-frontend-vqm8.vercel.app',
         'http://localhost:3000',

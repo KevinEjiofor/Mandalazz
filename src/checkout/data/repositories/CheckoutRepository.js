@@ -1,8 +1,8 @@
-const Checkout = require('../models/checkoutModel');
+const Checkout = require('../models/checkoutModel'); // This now returns a constructor
 
 class CheckoutRepository {
     static create(data) {
-        const checkout = new Checkout(data);
+        const checkout = new Checkout(data); // ✅ This now works
         return checkout.save();
     }
 
@@ -23,8 +23,7 @@ class CheckoutRepository {
     }
 
     static updateStatus(id, updates) {
-        return Checkout.findByIdAndUpdate(id, updates, { new: true })
-            .populate('user products.product');
+        return Checkout.findByIdAndUpdate(id, updates, { new: true }).populate('user products.product');
     }
 }
 
