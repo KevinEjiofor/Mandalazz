@@ -39,7 +39,7 @@ const productSchema = new mongoose.Schema({
     category: {
         type: String,
         required: true,
-        enum: ['woman','man','unisex','skincare','electronics','accessories','home','general']
+        enum: ['women','men','unisex','skincare','electronics','accessories','home','general']
     },
     tags: { type: [String], default: [] },
     isActive: {

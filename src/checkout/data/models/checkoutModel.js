@@ -1,4 +1,3 @@
-// /models/checkoutModel.js
 const mongoose = require('mongoose');
 const CheckoutStatus = require('../../../config/checkoutStatus');
 
@@ -99,7 +98,7 @@ const checkoutSchema = new mongoose.Schema({
         },
     });
 
-// Indexes
+
 checkoutSchema.index({ user: 1, createdAt: -1 });
 checkoutSchema.index({ 'userDetails.email': 1 });
 checkoutSchema.index({ 'userDetails.country.name': 1 });
@@ -107,7 +106,7 @@ checkoutSchema.index({ 'userDetails.city': 1 });
 checkoutSchema.index({ paymentStatus: 1 });
 checkoutSchema.index({ deliveryStatus: 1 });
 
-// Virtuals
+
 checkoutSchema.virtual('customerName').get(function () {
     return `${this.userDetails.firstName} ${this.userDetails.lastName}`;
 });
@@ -124,7 +123,7 @@ checkoutSchema.virtual('deliveryAddressSummary').get(function () {
     return parts.join(', ');
 });
 
-// Instance Methods
+
 checkoutSchema.methods.canBeCancelled = function () {
     return (
         new Date() <= new Date(this.cancellationDeadline) &&
@@ -133,5 +132,4 @@ checkoutSchema.methods.canBeCancelled = function () {
     );
 };
 
-// ✅ Correctly create and export the model
 module.exports = mongoose.model('Checkout', checkoutSchema);

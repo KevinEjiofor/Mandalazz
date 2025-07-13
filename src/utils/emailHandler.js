@@ -18,7 +18,7 @@ const sendEmail = async (to, subject, text) => {
             text,
         });
     } catch (error) {
-        console.error('Error sending email:', error);
+        // console.error('Error sending email:', error);
         throw new Error('Unable to send email');
     }
 };
@@ -31,9 +31,12 @@ const userNotifications = async (to, subject, text) => {
             text,
         });
     } catch (error) {
-        console.error('Error sending email:', error);
+        // console.error('Error sending email:', error);
         throw new Error('Unable to send email');
     }
+
+
+
 };
 
-module.exports = { sendEmail, userNotifications };
+module.exports = { sendEmail, userNotifications: userNotifications, };

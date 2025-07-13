@@ -1,68 +1,108 @@
-const cloudinary = require('../../utils/cloudinary');
+const cloudinary = require('../../config/cloudinary');
 const productRepo = require('../data/repositories/ProductRepository');
+const sharp = require('sharp');
+const fs = require('fs').promises;
+const path = require('path');
 
 class ProductService {
+    constructor() {
+        this.VALID_BRAND_TYPES = ['foreign', 'local'];
+        this.MAX_FILE_SIZE_MB = 10;
+        this.DEFAULT_COMPRESSION_QUALITY = 80;
+        this.MAX_UPLOAD_RETRIES = 3;
+    }
 
     async addProduct(productData, admin, variationsData, files) {
-        if (productData.brandType && !['foreign', 'local'].includes(productData.brandType)) {
-            throw new Error('Brand type must be either "foreign" or "local"');
+        try {
+            this.validateBrandType(productData.brandType);
+
+            const formattedVariations = await this.processVariations(variationsData, files);
+
+            const product = await productRepo.createProduct({
+                ...productData,
+                variations: formattedVariations,
+                createdBy: admin._id,
+                adminName: admin.name,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+
+            return { message: 'Product added successfully', product };
+        } catch (error) {
+            // Cleanup uploaded files on error
+            if (files && files.length > 0) {
+                await this.cleanupFiles(files);
+            }
+            throw error;
         }
-
-        const formattedVariations = await this.processVariations(variationsData, files);
-
-        const product = await productRepo.createProduct({
-            ...productData,
-            variations: formattedVariations,
-            createdBy: admin._id,
-            adminName: admin.name,
-        });
-
-        return { message: 'Product added successfully', product };
     }
 
     async updateProduct(productId, updateData, variationsData, files) {
-        const product = await productRepo.findById(productId);
-        if (!product) throw new Error('Product not found');
+        try {
+            const product = await productRepo.findById(productId);
+            if (!product) {
+                throw new Error('Product not found');
+            }
 
-        if (updateData.brandType && !['foreign', 'local'].includes(updateData.brandType)) {
-            throw new Error('Brand type must be either "foreign" or "local"');
+            this.validateBrandType(updateData.brandType);
+
+            let processedVariations = product.variations;
+
+            if (variationsData && files && files.length > 0) {
+                // Store old images for cleanup after successful update
+                const oldImages = product.variations;
+                processedVariations = await this.processVariations(variationsData, files);
+                updateData.variations = processedVariations;
+
+                // Cleanup old images after successful processing
+                await this.deleteProductImages(oldImages);
+            } else if (variationsData && !files) {
+                processedVariations = this.updateVariationsWithoutImages(product.variations, variationsData);
+                updateData.variations = processedVariations;
+            }
+
+            const cleanUpdateData = this.cleanUpdateData(updateData);
+            cleanUpdateData.updatedAt = new Date();
+
+            const updatedProduct = await productRepo.updateProduct(product, cleanUpdateData);
+            return { message: 'Product updated successfully', product: updatedProduct };
+        } catch (error) {
+            // Cleanup uploaded files on error
+            if (files && files.length > 0) {
+                await this.cleanupFiles(files);
+            }
+            throw error;
         }
-
-        if (variationsData && files && files.length > 0) {
-            await this.deleteProductImages(product.variations);
-            const processedVariations = await this.processVariations(variationsData, files);
-            updateData.variations = processedVariations;
-        } else if (variationsData && !files) {
-            updateData.variations = this.updateVariationsWithoutImages(product.variations, variationsData);
-        }
-
-        const cleanUpdateData = Object.fromEntries(
-            Object.entries(updateData).filter(([_, value]) => value !== undefined)
-        );
-
-        const updatedProduct = await productRepo.updateProduct(product, cleanUpdateData);
-        return { message: 'Product updated successfully', product: updatedProduct };
     }
 
     async deleteProduct(productId) {
         const product = await productRepo.findById(productId);
-        if (!product) throw new Error('Product not found');
+        if (!product) {
+            throw new Error('Product not found');
+        }
 
-        await this.deleteProductImages(product.variations);
-        await product.deleteOne();
-
-        return { message: 'Product deleted successfully' };
+        try {
+            await this.deleteProductImages(product.variations);
+            await product.deleteOne();
+            return { message: 'Product deleted successfully' };
+        } catch (error) {
+            throw new Error('Failed to delete product completely');
+        }
     }
 
     async getProductById(productId) {
+        if (!productId) {
+            throw new Error('Product ID is required');
+        }
         return await productRepo.findById(productId);
     }
 
     async fetchAllProducts(category, brandType, sortBy, page = 1, limit = 20) {
         const filter = { isActive: true };
+
         if (category) filter.category = category;
         if (brandType) {
-            if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+            this.validateBrandType(brandType);
             filter.brandType = brandType;
         }
 
@@ -74,64 +114,43 @@ class ProductService {
             productRepo.countDocuments(filter)
         ]);
 
-        const totalPages = Math.ceil(totalProducts / limit);
-        return {
-            products,
-            pagination: {
-                currentPage: page,
-                totalPages,
-                totalProducts,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
-            }
-        };
+        return this.buildPaginatedResponse(products, page, limit, totalProducts);
     }
 
     async searchProducts(query, sortBy, category, brandType, page = 1, limit = 20) {
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+            throw new Error('Search query is required');
+        }
+
         const searchFilter = {
-            $text: { $search: query },
+            $text: { $search: query.trim() },
             isActive: true,
         };
+
         if (category) searchFilter.category = category;
         if (brandType) {
-            if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+            this.validateBrandType(brandType);
             searchFilter.brandType = brandType;
         }
 
         const skip = (page - 1) * limit;
-
-        let sortOptions;
-        if (!sortBy || typeof sortBy !== 'string' || sortBy.trim() === '') {
-
-            sortOptions = { score: { $meta: 'textScore' } };
-        } else {
-            sortOptions = this.buildSortOptions(sortBy);
-        }
-
-
+        const sortOptions = this.buildSearchSortOptions(sortBy);
 
         const [products, totalProducts] = await Promise.all([
             productRepo.searchProducts(searchFilter, sortOptions, skip, limit),
             productRepo.countDocuments(searchFilter)
         ]);
 
-        const totalPages = Math.ceil(totalProducts / limit);
+        const response = this.buildPaginatedResponse(products, page, limit, totalProducts);
+        if (products.length === 0) {
+            response.message = 'Sorry, no products match your search.';
+        }
 
-        return {
-            products,
-            pagination: {
-                currentPage: page,
-                totalPages,
-                totalProducts,
-                hasNextPage: page < totalPages,
-                hasPrevPage: page > 1,
-            },
-            message: products.length === 0 ? 'Sorry, no products match your search.' : undefined
-        };
+        return response;
     }
 
     async getProductsByBrandType(brandType, page = 1, limit = 20) {
-        if (!['foreign', 'local'].includes(brandType)) throw new Error('Invalid brand type');
+        this.validateBrandType(brandType);
 
         const filter = { brandType, isActive: true };
         const skip = (page - 1) * limit;
@@ -141,33 +160,63 @@ class ProductService {
             productRepo.countDocuments(filter)
         ]);
 
+        const response = this.buildPaginatedResponse(products, page, limit, totalProducts);
+        response.brandType = brandType;
+        return response;
+    }
+
+    async getFilterOptions() {
+        try {
+            const [categories, brandTypes, brands] = await Promise.all([
+                productRepo.getDistinctValues('category', { isActive: true }),
+                productRepo.getDistinctValues('brandType', { isActive: true }),
+                productRepo.getDistinctValues('brand', { isActive: true, brand: { $ne: null } }),
+            ]);
+
+            return {
+                categories: categories.sort(),
+                brandTypes: brandTypes.sort(),
+                brands: brands.sort(),
+                sortOptions: this.getSortOptionsList(),
+            };
+        } catch (error) {
+            throw new Error('Failed to retrieve filter options');
+        }
+    }
+
+    // Helper methods
+    validateBrandType(brandType) {
+        if (brandType && !this.VALID_BRAND_TYPES.includes(brandType)) {
+            throw new Error(`Brand type must be one of: ${this.VALID_BRAND_TYPES.join(', ')}`);
+        }
+    }
+
+    cleanUpdateData(updateData) {
+        return Object.fromEntries(
+            Object.entries(updateData).filter(([_, value]) => value !== undefined)
+        );
+    }
+
+    buildPaginatedResponse(products, page, limit, totalProducts) {
         const totalPages = Math.ceil(totalProducts / limit);
         return {
             products,
-            brandType,
             pagination: {
-                currentPage: page,
+                currentPage: parseInt(page),
                 totalPages,
                 totalProducts,
                 hasNextPage: page < totalPages,
                 hasPrevPage: page > 1,
+                limit: parseInt(limit)
             }
         };
     }
 
-    async getFilterOptions() {
-        const [categories, brandTypes, brands] = await Promise.all([
-            productRepo.getDistinctValues('category', { isActive: true }),
-            productRepo.getDistinctValues('brandType', { isActive: true }),
-            productRepo.getDistinctValues('brand', { isActive: true, brand: { $ne: null } }),
-        ]);
-
-        return {
-            categories: categories.sort(),
-            brandTypes: brandTypes.sort(),
-            brands: brands.sort(),
-            sortOptions: this.getSortOptionsList(),
-        };
+    buildSearchSortOptions(sortBy) {
+        if (!sortBy || typeof sortBy !== 'string' || sortBy.trim() === '') {
+            return { score: { $meta: 'textScore' } };
+        }
+        return this.buildSortOptions(sortBy);
     }
 
     getSortOptionsList() {
@@ -187,15 +236,12 @@ class ProductService {
     }
 
     buildSortOptions(sortBy) {
-        // Ensure sortBy is a string and handle edge cases
         if (!sortBy || typeof sortBy !== 'string') {
             return { createdAt: -1 };
         }
 
-        // Trim whitespace and convert to lowercase for consistent comparison
         const normalizedSortBy = sortBy.trim().toLowerCase();
-
-        const options = {
+        const sortOptionsMap = {
             newest: { createdAt: -1 },
             oldest: { createdAt: 1 },
             price_high_to_low: { price: -1 },
@@ -209,97 +255,254 @@ class ProductService {
             brand_z_to_a: { brand: -1 },
         };
 
-        // Return the sort option if it exists, otherwise return default
-        const sortOption = options[normalizedSortBy] || { createdAt: -1 };
-        console.log(`Building sort options for: ${sortBy} -> ${normalizedSortBy}`, sortOption);
-        return sortOption;
+        return sortOptionsMap[normalizedSortBy] || { createdAt: -1 };
     }
 
     async processVariations(variationsData, files, folder = 'products') {
         try {
-            const parsed = typeof variationsData === 'string' ? JSON.parse(variationsData) : variationsData;
-            if (!Array.isArray(parsed)) throw new Error('Variations should be an array');
-            if (!Array.isArray(files)) throw new Error('No image files provided');
+            this.validateVariationInputs(variationsData, files);
 
-            const processedVariations = await Promise.all(parsed.map(async (variation, index) => {
-                const images = files
-                    .filter((f) => f.originalname.startsWith(variation.color))
-                    .map((f) => f.path);
+            const parsedVariations = this.parseVariationsData(variationsData);
+            const imageMap = this.extractImageMap(files);
 
-                if (!images.length) {
+            const processedVariations = await Promise.all(
+                parsedVariations.map(async (variation) => {
+                    const { color } = variation;
+                    if (!color) {
+                        throw new Error('Each variation must have a color');
+                    }
+
+                    const matchedFiles = this.findMatchingFiles(files, color, imageMap);
+                    const imageUrls = await this.uploadVariationImages(matchedFiles, folder);
+
                     return {
                         ...variation,
-                        images: []
+                        images: imageUrls
                     };
-                }
-
-                const uploads = await Promise.all(
-                    images.map((path, imgIndex) =>
-                        this.uploadWithRetry(path, folder, `${variation.color}_${imgIndex}`)
-                    )
-                );
-
-                return {
-                    ...variation,
-                    images: uploads.map(u => u.secure_url)
-                };
-            }));
+                })
+            );
 
             return processedVariations;
         } catch (error) {
-            throw new Error(`Error processing variations: ${error.message}`);
+            throw new Error(`Failed to process variations: ${error.message}`);
         }
     }
 
+    validateVariationInputs(variationsData, files) {
+        if (!variationsData) {
+            throw new Error('Variations data is required');
+        }
+        if (!files || !Array.isArray(files) || files.length === 0) {
+            throw new Error('Image files are required');
+        }
+    }
+
+    parseVariationsData(variationsData) {
+        try {
+            const parsed = typeof variationsData === 'string' ? JSON.parse(variationsData) : variationsData;
+            if (!Array.isArray(parsed)) {
+                throw new Error('Variations must be an array');
+            }
+            return parsed;
+        } catch (parseError) {
+            throw new Error(`Invalid variations data format: ${parseError.message}`);
+        }
+    }
+
+    extractImageMap(files) {
+        const imageMapFile = files.find(f => f.fieldname === 'imageMap');
+        if (!imageMapFile || !imageMapFile.buffer) {
+            return {};
+        }
+
+        try {
+            return JSON.parse(imageMapFile.buffer.toString());
+        } catch (parseError) {
+            return {};
+        }
+    }
+
+    findMatchingFiles(files, color, imageMap) {
+        return files.filter(file => {
+            if (file.fieldname === 'imageMap') return false;
+
+            if (Object.keys(imageMap).length > 0) {
+                const info = imageMap[file.originalname];
+                return info && info.color && info.color.toLowerCase() === color.toLowerCase();
+            }
+
+            return file.originalname.toLowerCase().includes(color.toLowerCase());
+        });
+    }
+
+    async uploadVariationImages(files, folder) {
+        return await Promise.all(
+            files.map(async (file) => {
+                try {
+                    const compressedPath = await this.ensureCloudinaryCompatible(file.path);
+                    const uploaded = await this.uploadWithRetry(compressedPath, folder, file.originalname);
+
+                    // Cleanup compressed file if different from original
+                    if (compressedPath !== file.path) {
+                        await this.safeUnlink(compressedPath);
+                    }
+
+                    return uploaded.secure_url;
+                } catch (uploadError) {
+                    throw uploadError;
+                }
+            })
+        );
+    }
+
+    async ensureCloudinaryCompatible(filePath, maxSizeKB = 8000) {
+        try {
+            const stats = await fs.stat(filePath);
+            const fileSizeKB = stats.size / 1024;
+
+            if (fileSizeKB <= maxSizeKB) {
+                return filePath;
+            }
+
+            const compressedPath = filePath.replace(/(\.[^.]+)$/, '_cloudinary_compressed$1');
+
+            let quality = this.calculateCompressionQuality(fileSizeKB);
+            let maxWidth = this.calculateMaxWidth(fileSizeKB);
+
+            await sharp(filePath)
+                .resize(maxWidth, maxWidth, {
+                    fit: 'inside',
+                    withoutEnlargement: true
+                })
+                .jpeg({
+                    quality: quality,
+                    progressive: true,
+                    mozjpeg: true
+                })
+                .toFile(compressedPath);
+
+            return compressedPath;
+        } catch (error) {
+            return filePath; // Return original if compression fails
+        }
+    }
+
+    calculateCompressionQuality(fileSizeKB) {
+        if (fileSizeKB > 25000) return 30;
+        if (fileSizeKB > 15000) return 50;
+        return 70;
+    }
+
+    calculateMaxWidth(fileSizeKB) {
+        if (fileSizeKB > 25000) return 1200;
+        if (fileSizeKB > 15000) return 1500;
+        return 1800;
+    }
+
     async uploadWithRetry(imagePath, folder, fileName, maxRetries = 3) {
+        // Validate inputs
+        if (!imagePath || !fileName) {
+            throw new Error('Image path and file name are required.');
+        }
+
+        // Check if file exists
+        try {
+            await fs.access(imagePath);
+        } catch {
+            throw new Error(`File does not exist: ${imagePath}`);
+        }
+
+        // Optional: Validate file size (example: max 10MB)
+        const stats = await fs.stat(imagePath);
+        const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
+        if (stats.size > maxSizeInBytes) {
+            throw new Error(`File size exceeds 10MB limit: ${fileName}`);
+        }
+
+        // Retry loop
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                return await cloudinary.uploader.upload(imagePath, {
+                const uploadResult = await cloudinary.uploader.upload(imagePath, {
                     folder,
-                    public_id: fileName,
+                    public_id: fileName.split('.')[0],
                     timeout: 120000,
                     resource_type: 'auto',
                     overwrite: true,
                     quality: 'auto:good',
                     fetch_format: 'auto'
                 });
+
+                return uploadResult;
             } catch (error) {
                 if (attempt === maxRetries) {
                     throw new Error(`Failed to upload ${fileName} after ${maxRetries} attempts: ${error.message}`);
                 }
-                const waitTime = Math.pow(2, attempt) * 1000;
-                await new Promise(resolve => setTimeout(resolve, waitTime));
+
+                const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000; // Exponential backoff with jitter
+                await new Promise(res => setTimeout(res, delay));
             }
         }
+    }
+
+    validateUploadInputs(imagePath, fileName) {
+        if (!imagePath) throw new Error('Image path is required for upload');
+        if (!fileName) throw new Error('File name is required for upload');
+    }
+
+    async validateFileSize(imagePath, fileName) {
+        const stats = await fs.stat(imagePath);
+        const fileSizeMB = stats.size / (1024 * 1024);
+
+        if (fileSizeMB > this.MAX_FILE_SIZE_MB) {
+            throw new Error(`File ${fileName} is ${fileSizeMB.toFixed(2)}MB, exceeds ${this.MAX_FILE_SIZE_MB}MB limit`);
+        }
+    }
+
+    generatePublicId(fileName) {
+        const timestamp = Date.now();
+        const cleanName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        return `${timestamp}_${cleanName}`;
+    }
+
+    async delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     async deleteProductImages(variations) {
         if (!variations || variations.length === 0) return;
 
         const deletePromises = variations.flatMap((variation) =>
-            variation.images.map(async (imageUrl) => {
+            (variation.images || []).map(async (imageUrl) => {
                 try {
-                    const publicId = imageUrl.split('/').slice(-2).join('/').split('.')[0];
+                    const publicId = this.extractPublicId(imageUrl);
                     await cloudinary.uploader.destroy(publicId, { timeout: 60000 });
                 } catch (err) {
-                    console.error(`Failed to delete image: ${imageUrl}`, err);
+                    // Silently handle image deletion errors
                 }
             })
         );
+
         await Promise.all(deletePromises);
+    }
+
+    extractPublicId(imageUrl) {
+        const urlParts = imageUrl.split('/');
+        const lastPart = urlParts[urlParts.length - 1];
+        const publicId = lastPart.split('.')[0];
+        return urlParts.slice(-2, -1)[0] + '/' + publicId;
     }
 
     updateVariationsWithoutImages(existingVariations, newVariationsData) {
         try {
-            const parsed = typeof newVariationsData === 'string' ? JSON.parse(newVariationsData) : newVariationsData;
+            const parsedVariations = this.parseVariationsData(newVariationsData);
 
             return existingVariations.map(existingVariation => {
-                const updatedVariation = parsed.find(v => v.color === existingVariation.color);
+                const updatedVariation = parsedVariations.find(v => v.color === existingVariation.color);
                 if (updatedVariation) {
                     return {
                         ...existingVariation,
                         ...updatedVariation,
-                        images: existingVariation.images
+                        images: existingVariation.images // Keep existing images
                     };
                 }
                 return existingVariation;
@@ -309,7 +512,27 @@ class ProductService {
         }
     }
 
+    async cleanupFiles(files) {
+        const cleanupPromises = files.map(async (file) => {
+            try {
+                await this.safeUnlink(file.path);
+            } catch (error) {
+                // Silently handle cleanup errors
+            }
+        });
 
+        await Promise.all(cleanupPromises);
+    }
+
+    async safeUnlink(filePath) {
+        try {
+            await fs.unlink(filePath);
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                throw error;
+            }
+        }
+    }
 }
 
 module.exports = new ProductService();

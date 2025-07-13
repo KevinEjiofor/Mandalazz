@@ -1,8 +1,8 @@
-const Checkout = require('../models/checkoutModel'); // This now returns a constructor
+const Checkout = require('../models/checkoutModel');
 
 class CheckoutRepository {
     static create(data) {
-        const checkout = new Checkout(data); // ✅ This now works
+        const checkout = new Checkout(data);
         return checkout.save();
     }
 

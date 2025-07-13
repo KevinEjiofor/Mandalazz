@@ -3,8 +3,8 @@ const productService = require('../product/services/ProductService');
 class ProductValidator {
     constructor() {
         this.validCategories = [
-            'woman',
-            'man',
+            'women',
+            'men',
             'unisex',
             'skincare',
             'electronics',
