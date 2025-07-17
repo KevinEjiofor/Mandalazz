@@ -7,6 +7,11 @@ const checkoutSchema = new mongoose.Schema({
             ref: 'User',
             required: true,
         },
+        orderNumber: {
+            type: String,
+            unique: true,
+            required: true,
+        },
         products: [
             {
                 product: {
@@ -98,6 +103,15 @@ const checkoutSchema = new mongoose.Schema({
         },
     });
 
+// Generate order number before saving
+checkoutSchema.pre('save', function(next) {
+    if (!this.orderNumber) {
+        const timestamp = Date.now().toString();
+        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+        this.orderNumber = `ORD-${timestamp}-${randomStr}`;
+    }
+    next();
+});
 
 checkoutSchema.index({ user: 1, createdAt: -1 });
 checkoutSchema.index({ 'userDetails.email': 1 });
@@ -105,7 +119,7 @@ checkoutSchema.index({ 'userDetails.country.name': 1 });
 checkoutSchema.index({ 'userDetails.city': 1 });
 checkoutSchema.index({ paymentStatus: 1 });
 checkoutSchema.index({ deliveryStatus: 1 });
-
+checkoutSchema.index({ orderNumber: 1 });
 
 checkoutSchema.virtual('customerName').get(function () {
     return `${this.userDetails.firstName} ${this.userDetails.lastName}`;
@@ -122,7 +136,6 @@ checkoutSchema.virtual('deliveryAddressSummary').get(function () {
 
     return parts.join(', ');
 });
-
 
 checkoutSchema.methods.canBeCancelled = function () {
     return (

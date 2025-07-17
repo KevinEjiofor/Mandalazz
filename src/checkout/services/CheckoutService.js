@@ -9,6 +9,12 @@ const NotificationService = require('../../notification/service/NotificationServ
 const CheckoutStatus = require('../../config/checkoutStatus');
 
 class CheckoutService {
+    static generateOrderNumber() {
+        const timestamp = Date.now().toString();
+        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+        return `ORD-${timestamp}-${randomStr}`;
+    }
+
     static validateCheckoutRequest(userDetails, paymentType) {
         if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
             throw new Error('Invalid payment type');
@@ -90,6 +96,7 @@ class CheckoutService {
     static async _processPaymentOnDelivery(user, addressDetails, cart, estimatedDelivery, cancellationDeadline) {
         const payload = {
             user: user._id,
+            orderNumber: this.generateOrderNumber(),
             products: cart.items,
             totalAmount: cart.totalAmount,
             userDetails: addressDetails,
@@ -98,7 +105,6 @@ class CheckoutService {
             deliveryStatus: CheckoutStatus.PENDING,
             estimatedDeliveryDate: estimatedDelivery,
             cancellationDeadline,
-            // paymentReference: null,
         };
 
         const checkout = await CheckoutRepo.create(payload);
@@ -116,6 +122,7 @@ class CheckoutService {
 
         const checkout = await CheckoutRepo.create({
             user: user._id,
+            orderNumber: this.generateOrderNumber(),
             products: cart.items,
             totalAmount: amount,
             userDetails: addressDetails,
@@ -150,7 +157,7 @@ class CheckoutService {
             await userNotifications(
                 updated.userDetails.email,
                 'Payment Successful',
-                `Dear ${updated.userDetails.firstName}, your payment has been confirmed. Delivery within 3–7 days to ${updated.userDetails.address}.`
+                `Dear ${updated.userDetails.firstName}, your payment for order ${updated.orderNumber} has been confirmed. Delivery within 3–7 days to ${updated.userDetails.address}.`
             );
         }
 
@@ -192,7 +199,7 @@ class CheckoutService {
         await userNotifications(
             updated.userDetails.email,
             'Delivery Status Update',
-            `Dear ${updated.userDetails.firstName}, your delivery status is now: ${newDeliveryStatus}`
+            `Dear ${updated.userDetails.firstName}, your order ${updated.orderNumber} delivery status is now: ${newDeliveryStatus}`
         );
 
         this._notifyUserAndAdmin(user, updated, 'delivery_status_update');
@@ -239,8 +246,10 @@ class CheckoutService {
         if (params.paymentStatus) query.paymentStatus = params.paymentStatus;
         if (params.paymentReference) query.paymentReference = params.paymentReference;
         if (params.deliveryStatus) query.deliveryStatus = params.deliveryStatus;
+        if (params.orderNumber) query.orderNumber = { $regex: params.orderNumber, $options: 'i' };
         if (params.country) query['userDetails.country.name'] = { $regex: params.country, $options: 'i' };
         if (params.city) query['userDetails.city'] = { $regex: params.city, $options: 'i' };
+
 
         return CheckoutRepo.find(query);
     }
@@ -284,10 +293,11 @@ class CheckoutService {
             ? `${checkout.userDetails.firstName} ${checkout.userDetails.lastName}`
             : `${user.firstName} ${user.lastName}`;
 
-        const message = `${customerName} - ${eventType.replace(/_/g, ' ')} - Checkout ${checkout._id}`;
+        const message = `${customerName} - ${eventType.replace(/_/g, ' ')} - Order ${checkout.orderNumber}`;
 
         const payload = {
             checkoutId: checkout._id,
+            orderNumber: checkout.orderNumber,
             userId: user._id,
             customerName,
             firstName: checkout.userDetails?.firstName || user.firstName,

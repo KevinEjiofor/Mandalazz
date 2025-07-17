@@ -57,6 +57,20 @@ class CheckoutController {
         }
     }
 
+    static async getUserCheckouts(req, res) {
+        try {
+            const userId = req.user.id;
+            const checkouts = await CheckoutService.getUserCheckouts(userId);
+
+            sendSuccessResponse(res, {
+                message: 'User checkouts retrieved successfully.',
+                checkouts,
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to retrieve user checkouts.' });
+        }
+    }
+
     static async updatePaymentStatus(req, res) {
         try {
             const { checkoutId } = req.params;
