@@ -18,7 +18,7 @@ EXPOSE 3030
 
 # Create non-root user for security (Debian-compatible)
 RUN groupadd -g 1001 nodejs && \
-sX    useradd -m -u 1001 -g nodejs nodejs
+    useradd -m -u 1001 -g nodejs nodejs
 
 # Change ownership of the app directory
 RUN chown -R nodejs:nodejs /app
