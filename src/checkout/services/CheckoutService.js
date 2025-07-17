@@ -7,7 +7,7 @@ const { userNotifications } = require('../../utils/emailHandler');
 const { getIO } = require('../../utils/socketHandler');
 const NotificationService = require('../../notification/service/NotificationService');
 const CheckoutStatus = require('../../config/checkoutStatus');
-const generateOrderNumber = require('../../utils/tokenGenerator');
+const {generateOrderNumber} = require('../../utils/tokenGenerator');
 
 class CheckoutService {
 
@@ -93,7 +93,7 @@ class CheckoutService {
     static async _processPaymentOnDelivery(user, addressDetails, cart, estimatedDelivery, cancellationDeadline) {
         const payload = {
             user: user._id,
-            orderNumber: this.generateOrderNumber(),
+            orderNumber: generateOrderNumber,
             products: cart.items,
             totalAmount: cart.totalAmount,
             userDetails: addressDetails,
@@ -119,7 +119,7 @@ class CheckoutService {
 
         const checkout = await CheckoutRepo.create({
             user: user._id,
-            orderNumber: this.generateOrderNumber(),
+            orderNumber: generateOrderNumber,
             products: cart.items,
             totalAmount: amount,
             userDetails: addressDetails,
