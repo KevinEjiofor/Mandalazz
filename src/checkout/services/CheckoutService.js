@@ -7,13 +7,10 @@ const { userNotifications } = require('../../utils/emailHandler');
 const { getIO } = require('../../utils/socketHandler');
 const NotificationService = require('../../notification/service/NotificationService');
 const CheckoutStatus = require('../../config/checkoutStatus');
+const generateOrderNumber = require('../../utils/tokenGenerator');
 
 class CheckoutService {
-    static generateOrderNumber() {
-        const timestamp = Date.now().toString();
-        const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
-        return `ORD-${timestamp}-${randomStr}`;
-    }
+
 
     static validateCheckoutRequest(userDetails, paymentType) {
         if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
