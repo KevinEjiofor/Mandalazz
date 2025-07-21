@@ -54,7 +54,7 @@ const corsOptions = {
             callback(new Error(`CORS error: Origin ${origin} not allowed`));
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
 };
 app.use(cors(corsOptions));
