@@ -1,7 +1,6 @@
 const mongoose = require('mongoose')
 const User = require("../models/userModel");
 
-
 class UserRepository {
     async createUser(firstName, lastName, email, password) {
         const newUser = new User({ firstName, lastName, email, password });
@@ -11,6 +10,21 @@ class UserRepository {
 
     async findUserById(id) {
         return User.findById(id).select('-password');
+    }
+
+    async getUserWithPassword(id) {
+        return User.findById(id);
+    }
+
+    async updatePassword(userId, hashedPassword) {
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { $set: { password: hashedPassword } },
+            { new: true }
+        );
+
+        if (!user) throw new Error('User not found');
+        return user;
     }
 
     async updateUserProfile(userId, updateData) {

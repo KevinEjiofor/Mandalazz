@@ -40,11 +40,11 @@ if (!process.env.MONGO_URI) {
 // Connect to MongoDB
 connectDB();
 
-// Initialize WebSocket & Cron Jobs
+
 initializeWebSocket(server);
 scheduleEmailVerificationReminders();
 
-// ✅ CORS Configuration using .env
+
 const allowedOrigins = process.env.CLIENT_URL?.split(',') || [];
 const corsOptions = {
     origin: function (origin, callback) {
@@ -59,11 +59,11 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// ✅ Parsers
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Session Middleware
+
 app.use(session({
     name: process.env.SESSION_NAME || 'sid',
     secret: process.env.SESSION_SECRET || 'fallbackSecret',
@@ -81,10 +81,10 @@ app.use(session({
     },
 }));
 
-// ✅ Guest Session Middleware
+
 app.use(guestMiddleware);
 
-// ✅ Routes
+
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/product', productRoutes);
@@ -98,17 +98,17 @@ app.use('/api/recentview', recentViewRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/location', locationRoutes);
 
-// ✅ Root Route
+
 app.get('/', (req, res) => {
     res.send('🚀 Mandelazz API is running');
 });
 
-// 404 Handler
+
 app.use((req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
 
-// ✅ Start Server
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);

@@ -103,6 +103,38 @@ class UserController {
         }
     }
 
+    static async changePassword(req, res) {
+        try {
+            if (!req.user) {
+                return sendErrorResponse(res, 'Authentication required', 401);
+            }
+
+            const { id: userId } = req.user;
+
+            if (!userId) {
+                return sendErrorResponse(res, 'User ID not found in token', 401);
+            }
+
+            const { oldPassword, newPassword } = req.body;
+
+            // Validate required fields
+            if (!oldPassword || !newPassword) {
+                return sendErrorResponse(res, 'Old password and new password are required', 400);
+            }
+
+            // Validate new password length
+            if (newPassword.length < 6) {
+                return sendErrorResponse(res, 'New password must be at least 6 characters long', 400);
+            }
+
+            await UserService.changePassword(userId, oldPassword, newPassword);
+
+            sendSuccessResponse(res, { message: 'Password changed successfully' });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
     static async logout(req, res) {
         try {
 

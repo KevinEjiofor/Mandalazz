@@ -121,8 +121,38 @@ class UserService {
         return user;
     }
 
-    static async handleUserSessionData(userId, guestId) {
+    static async changePassword(userId, oldPassword, newPassword) {
+        // Get user with password field included
+        const user = await UserRepository.getUserWithPassword(userId);
+        if (!user) {
+            throw new Error('User not found');
+        }
 
+        // Verify old password
+        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+            throw new Error('Current password is incorrect');
+        }
+
+        // Check if new password is same as old password
+        const isSamePassword = await bcrypt.compare(newPassword, user.password);
+        if (isSamePassword) {
+            throw new Error('New password must be different from current password');
+        }
+
+        // Hash new password
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update password in database
+        await UserRepository.updatePassword(userId, hashedNewPassword);
+
+        // Log the activity
+        await UserRepository.logUserActivity(userId, 'Password changed');
+
+        return true;
+    }
+
+    static async handleUserSessionData(userId, guestId) {
 
         try {
             if (guestId) {
@@ -149,11 +179,8 @@ class UserService {
         return await UserRepository.getUserActivityLogs(userId);
     }
 
-
-
     static async updateUserProfile(userId, updateData) {
         const { firstName, lastName, email, phoneNumber, alternateNumber } = updateData;
-
 
         const fieldsToUpdate = {};
 
@@ -184,13 +211,11 @@ class UserService {
             fieldsToUpdate.alternateNumber = alternateNumber ? alternateNumber.trim() : null;
         }
 
-
         if (Object.keys(fieldsToUpdate).length === 0) {
             throw new Error('No valid fields provided for update');
         }
 
         const updatedUser = await UserRepository.updateUserProfile(userId, fieldsToUpdate);
-
 
         await UserRepository.logUserActivity(userId, 'Profile updated');
 
@@ -202,10 +227,10 @@ class UserService {
         if (!user) throw new Error('User not found');
         return user;
     }
+
     static async getUserProfileForUser(userId) {
         const user = await UserRepository.findUserById(userId);
         if (!user) throw new Error('User not found');
-
 
         return {
             firstName: user.firstName,
