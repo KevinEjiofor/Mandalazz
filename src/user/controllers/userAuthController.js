@@ -179,7 +179,7 @@ class UserController {
 
             sendSuccessResponse(res, {
                 message: 'Profile updated successfully',
-                // user: updatedUser
+
             });
         } catch (error) {
 
