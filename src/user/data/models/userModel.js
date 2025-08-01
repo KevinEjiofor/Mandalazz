@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const RoleEnum = require("../../../config/roleEnum");
 
 const userSchema = new mongoose.Schema({
@@ -62,7 +63,7 @@ const userSchema = new mongoose.Schema({
     ],
     emailVerified: {
         type: Boolean,
-        default: false,
+        default: false
     },
     emailVerificationToken: {
         type: String,
@@ -73,5 +74,22 @@ const userSchema = new mongoose.Schema({
         default: null
     }
 }, { timestamps: true });
+
+
+userSchema.methods.createPasswordResetToken = function () {
+
+    const rawToken = (crypto.randomInt(0, 1000000)).toString().padStart(6, '0');
+    this.resetPasswordPin = crypto.createHash('sha256').update(rawToken).digest('hex');
+    this.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    return rawToken;
+};
+
+
+userSchema.methods.createEmailVerificationToken = function () {
+    const rawToken = (crypto.randomInt(0, 1000000)).toString().padStart(6, '0');
+    this.emailVerificationToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    this.emailVerificationExpire = Date.now() + 30 * 60 * 1000;
+    return rawToken;
+};
 
 module.exports = mongoose.model('User', userSchema);

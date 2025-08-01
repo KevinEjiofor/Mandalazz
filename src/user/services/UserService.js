@@ -1,41 +1,43 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const UserRepository = require('../data/repositories/UserRepository');
+const User = require('../data/models/userModel');
 const { checkIfUserExists } = require('../../utils/validation');
 const { sendEmail } = require('../../utils/emailHandler');
-const { generateResetToken } = require('../../utils/tokenGenerator');
 const CartService = require('../../cart/services/CartService');
 const RecentViewService = require('../../recentView/services/RecentViewService');
 
 class UserService {
 
     static async authenticateUser(email, password, guestId) {
-
         const user = await UserRepository.getUserByEmail(email);
         if (!user || !(await bcrypt.compare(password, user.password))) {
             throw new Error('Invalid email or password');
         }
 
         if (guestId) {
-
             await this.handleUserSessionData(user._id, guestId);
         }
 
-        return jwt.sign({id: user._id, role: user.role}, process.env.JWT_SECRET, {expiresIn: '5h'}) ;
+        return jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '5h' }
+        );
     }
 
     static async createUserAccount(firstName, lastName, email, password) {
         await checkIfUserExists(email);
         const hashedPassword = await bcrypt.hash(password, 10);
-        const verificationToken = generateResetToken();
-
         const newUser = await UserRepository.createUser(firstName, lastName, email, hashedPassword);
-        newUser.emailVerificationToken = verificationToken;
-        newUser.emailVerificationExpire = Date.now() + 30 * 60 * 1000;
+
+        // Use model method to create verification token (hashed stored)
+        const rawVerificationToken = newUser.createEmailVerificationToken();
         await newUser.save();
 
         const subject = 'Welcome to Our Platform';
-        const text = `Hi ${firstName},\n\nWelcome! Verify your email using this code: ${verificationToken} (expires in 30 mins).`;
+        const text = `Hi ${firstName},\n\nWelcome! Verify your email using this code: ${rawVerificationToken} (expires in 30 mins).`;
 
         await sendEmail(email, subject, text);
         return newUser;
@@ -44,7 +46,15 @@ class UserService {
     static async verifyEmail(email, token) {
         const user = await UserRepository.getUserByEmail(email);
         if (!user || user.emailVerified) throw new Error('Invalid operation');
-        if (user.emailVerificationToken !== token || user.emailVerificationExpire < Date.now()) {
+
+        // check expiry
+        if (!user.emailVerificationToken || user.emailVerificationExpire < Date.now()) {
+            throw new Error('Invalid or expired verification token');
+        }
+
+        // compare hashed tokens
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        if (user.emailVerificationToken !== hashedToken) {
             throw new Error('Invalid or expired verification token');
         }
 
@@ -60,13 +70,11 @@ class UserService {
         const user = await UserRepository.getUserByEmail(email);
         if (!user || user.emailVerified) throw new Error('Invalid operation');
 
-        const token = generateResetToken();
-        user.emailVerificationToken = token;
-        user.emailVerificationExpire = Date.now() + 30 * 60 * 1000;
+        const rawToken = user.createEmailVerificationToken();
         await user.save();
 
         const subject = 'Email Verification';
-        const text = `Hi ${user.firstName},\n\nUse this code to verify your email: ${token} (expires in 30 mins).`;
+        const text = `Hi ${user.firstName},\n\nUse this code to verify your email: ${rawToken} (expires in 30 mins).`;
 
         await sendEmail(email, subject, text);
         return true;
@@ -86,30 +94,47 @@ class UserService {
         const user = await UserRepository.getUserByEmail(email);
         if (!user) throw new Error('No user found with this email');
 
-        const resetPin = generateResetToken();
-        user.resetPasswordPin = resetPin;
-        user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+        const rawResetToken = user.createPasswordResetToken();
         await user.save();
 
         const subject = 'Password Reset PIN';
-        const text = `Hi ${user.firstName},\n\nYour password reset PIN is ${resetPin} (expires in 10 mins).`;
+        const text = `Hi ${user.firstName},\n\nYour password reset PIN is ${rawResetToken} (expires in 10 mins).`;
 
         await sendEmail(email, subject, text);
-        return resetPin;
+        return rawResetToken;
     }
 
-    static async validateResetToken(email, token) {
-        const user = await UserRepository.getUserByEmail(email);
-        if (!user || user.resetPasswordPin !== token || user.resetPasswordExpire < Date.now()) {
+    static async validateResetToken(token) {
+        if (!token) throw new Error('Reset token required');
+
+        const cleaned = token.trim();
+        const hashedToken = crypto.createHash('sha256').update(cleaned).digest('hex');
+
+        const user = await User.findOne({
+            resetPasswordPin: hashedToken,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!user) {
             throw new Error('Invalid or expired reset token');
         }
 
         return true;
     }
 
-    static async resetPassword(email, token, newPassword) {
-        const user = await UserRepository.getUserByEmail(email);
-        if (!user || user.resetPasswordPin !== token || user.resetPasswordExpire < Date.now()) {
+    static async resetPassword(token, newPassword) {
+        if (!token) throw new Error('Reset token is required');
+        if (!newPassword || newPassword.length < 6) throw new Error('New password must be at least 6 characters long');
+
+        const cleaned = token.trim();
+        const hashedToken = crypto.createHash('sha256').update(cleaned).digest('hex');
+
+        const user = await User.findOne({
+            resetPasswordPin: hashedToken,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!user) {
             throw new Error('Invalid or expired reset token');
         }
 
@@ -118,52 +143,43 @@ class UserService {
         user.resetPasswordExpire = undefined;
         await user.save();
 
-        return user;
+        const userSafe = user.toObject();
+        delete userSafe.password;
+        return userSafe;
     }
 
+
     static async changePassword(userId, oldPassword, newPassword) {
-        // Get user with password field included
         const user = await UserRepository.getUserWithPassword(userId);
         if (!user) {
             throw new Error('User not found');
         }
 
-        // Verify old password
         const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
         if (!isOldPasswordValid) {
             throw new Error('Current password is incorrect');
         }
 
-        // Check if new password is same as old password
         const isSamePassword = await bcrypt.compare(newPassword, user.password);
         if (isSamePassword) {
             throw new Error('New password must be different from current password');
         }
 
-        // Hash new password
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-
-        // Update password in database
         await UserRepository.updatePassword(userId, hashedNewPassword);
-
-        // Log the activity
         await UserRepository.logUserActivity(userId, 'Password changed');
 
         return true;
     }
 
     static async handleUserSessionData(userId, guestId) {
-
         try {
             if (guestId) {
-
                 await CartService.mergeGuestCartWithUserCart(guestId, userId);
                 await RecentViewService.mergeGuestRecentViewsWithUser(guestId, userId);
-
             }
         } catch (error) {
             console.error(`❌ Error merging session data for user ${userId}:`, error);
-
         }
     }
 
@@ -193,13 +209,11 @@ class UserService {
         }
 
         if (email !== undefined && email.trim()) {
-
             const existingUser = await UserRepository.checkEmailExists(email.trim(), userId);
             if (existingUser) {
                 throw new Error('Email already exists');
             }
             fieldsToUpdate.email = email.trim();
-
             fieldsToUpdate.emailVerified = false;
         }
 
@@ -216,9 +230,7 @@ class UserService {
         }
 
         const updatedUser = await UserRepository.updateUserProfile(userId, fieldsToUpdate);
-
         await UserRepository.logUserActivity(userId, 'Profile updated');
-
         return updatedUser;
     }
 

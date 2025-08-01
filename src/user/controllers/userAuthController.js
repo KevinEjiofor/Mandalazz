@@ -85,8 +85,8 @@ class UserController {
 
     static async validateResetToken(req, res) {
         try {
-            const { email, token } = req.body;
-            await UserService.validateResetToken(email, token);
+            const { token } = req.body;
+            await UserService.validateResetToken(token);
             sendSuccessResponse(res, { message: 'Token validated' });
         } catch (error) {
             sendErrorResponse(res, error.message);
@@ -95,8 +95,8 @@ class UserController {
 
     static async resetPassword(req, res) {
         try {
-            const { email, token, newPassword } = req.body;
-            await UserService.resetPassword(email, token, newPassword);
+            const { token, newPassword } = req.body;
+            await UserService.resetPassword(token, newPassword);
             sendSuccessResponse(res, { message: 'Password reset successfully' });
         } catch (error) {
             sendErrorResponse(res, error.message);
