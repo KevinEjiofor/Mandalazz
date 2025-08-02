@@ -6,7 +6,10 @@ class AdminController {
         try {
             const { email, password } = req.body;
             const token = await AdminAuthService.authenticateAdmin(email, password);
-            sendSuccessResponse(res, { token });
+            sendSuccessResponse(res, {
+                message: 'Login successful',
+                data: { token }
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -16,7 +19,9 @@ class AdminController {
         try {
             const { name, email, password } = req.body;
             await AdminAuthService.createAdminAccount(name, email, password);
-            sendSuccessResponse(res, { message: 'Admin created successfully' });
+            sendSuccessResponse(res, {
+                message: 'Admin account created successfully'
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -26,7 +31,9 @@ class AdminController {
         try {
             const { email } = req.body;
             await AdminAuthService.forgotPassword(email);
-            sendSuccessResponse(res, { message: 'Reset PIN sent to email' });
+            sendSuccessResponse(res, {
+                message: 'Password reset TOKEN has been sent to the provided email'
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -34,9 +41,11 @@ class AdminController {
 
     async validateResetToken(req, res) {
         try {
-            const { email, token } = req.body;
-            await AdminAuthService.validateResetToken(email, token);
-            sendSuccessResponse(res, { message: 'Token is valid' });
+            const { token } = req.body;
+            await AdminAuthService.validateResetToken(token);
+            sendSuccessResponse(res, {
+                message: 'Reset TOKEN is valid'
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -44,14 +53,15 @@ class AdminController {
 
     async resetPassword(req, res) {
         try {
-            const { email, token, newPassword } = req.body;
-            await AdminAuthService.resetPassword(email, token, newPassword);
-            sendSuccessResponse(res, { message: 'Password reset successful' });
+            const { token, newPassword } = req.body;
+            await AdminAuthService.resetPassword(token, newPassword);
+            sendSuccessResponse(res, {
+                message: 'Password has been reset successfully'
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
     }
-
     async changePassword(req, res) {
         try {
             if (!req.user) {
@@ -62,15 +72,13 @@ class AdminController {
             const { oldPassword, newPassword } = req.body;
 
             if (!oldPassword || !newPassword) {
-                return sendErrorResponse(res, 'Old and new password are required', 400);
-            }
-
-            if (newPassword.length < 6) {
-                return sendErrorResponse(res, 'New password must be at least 6 characters long', 400);
+                return sendErrorResponse(res, 'Both old and new passwords are required', 400);
             }
 
             await AdminAuthService.changePassword(adminId, oldPassword, newPassword);
-            sendSuccessResponse(res, { message: 'Password changed successfully' });
+            sendSuccessResponse(res, {
+                message: 'Password changed successfully'
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -79,7 +87,7 @@ class AdminController {
     async logout(req, res) {
         try {
             const result = AdminAuthService.logoutUser();
-            sendSuccessResponse(res, result);
+            sendSuccessResponse(res, { message: result.message });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -89,7 +97,10 @@ class AdminController {
         try {
             const { page = 1, limit = 10 } = req.query;
             const userOverviews = await AdminAuthService.getUserOverviews(parseInt(page), parseInt(limit));
-            sendSuccessResponse(res, userOverviews);
+            sendSuccessResponse(res, {
+                message: 'User overviews retrieved',
+                data: userOverviews
+            });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }

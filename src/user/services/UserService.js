@@ -32,12 +32,22 @@ class UserService {
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = await UserRepository.createUser(firstName, lastName, email, hashedPassword);
 
-        // Use model method to create verification token (hashed stored)
+
         const rawVerificationToken = newUser.createEmailVerificationToken();
         await newUser.save();
 
-        const subject = 'Welcome to Our Platform';
-        const text = `Hi ${firstName},\n\nWelcome! Verify your email using this code: ${rawVerificationToken} (expires in 30 mins).`;
+        const subject = 'Welcome to Our  Everything Mandelazz';
+        const text = `Hi ${newUser.firstName},
+            
+            Welcome to Everything Mandalle! Please verify your email using the code below:
+            
+            Verification Code: ${rawVerificationToken}
+            
+            This code expires in 30 minutes. If you didn’t sign up, please ignore this email.
+            
+            Best,
+            The  Everything Mandelazz Team
+            `;
 
         await sendEmail(email, subject, text);
         return newUser;
@@ -47,12 +57,12 @@ class UserService {
         const user = await UserRepository.getUserByEmail(email);
         if (!user || user.emailVerified) throw new Error('Invalid operation');
 
-        // check expiry
+
         if (!user.emailVerificationToken || user.emailVerificationExpire < Date.now()) {
             throw new Error('Invalid or expired verification token');
         }
 
-        // compare hashed tokens
+
         const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
         if (user.emailVerificationToken !== hashedToken) {
             throw new Error('Invalid or expired verification token');
@@ -74,7 +84,17 @@ class UserService {
         await user.save();
 
         const subject = 'Email Verification';
-        const text = `Hi ${user.firstName},\n\nUse this code to verify your email: ${rawToken} (expires in 30 mins).`;
+        const text =
+            ` Hi ${user.firstName},
+
+        Here’s your email verification code:
+
+            Verification Code: ${rawToken}
+
+        It will expire in 30 minutes. If you already verified your email, you can safely ignore this message.
+
+            Best,
+            The EVerythin Mandallezz Team'`;
 
         await sendEmail(email, subject, text);
         return true;
@@ -98,7 +118,17 @@ class UserService {
         await user.save();
 
         const subject = 'Password Reset PIN';
-        const text = `Hi ${user.firstName},\n\nYour password reset PIN is ${rawResetToken} (expires in 10 mins).`;
+        const text = `Hi ${user.firstName},
+
+We received a request to reset your password. Use the TOKEN below to proceed:
+
+Reset TOKEN: ${ rawResetToken }
+
+This TOKEN expires in 10 minutes. If you did not request a password reset, no further action is needed.
+
+Regards,
+The  Everything Mandelazz Support Team
+`;
 
         await sendEmail(email, subject, text);
         return rawResetToken;
@@ -168,6 +198,18 @@ class UserService {
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
         await UserRepository.updatePassword(userId, hashedNewPassword);
         await UserRepository.logUserActivity(userId, 'Password changed');
+
+        const subject = 'Password Changed';
+        const text = `Hi ${user.firstName},
+
+
+This is a notification that your account password was successfully changed. If you did not perform this action, please contact support immediately or reset your password again.
+
+Regards,
+The  Everything Mandelazz Support Security Team
+`;
+
+        await sendEmail(email, subject, text);
 
         return true;
     }

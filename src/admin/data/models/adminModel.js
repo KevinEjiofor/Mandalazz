@@ -41,9 +41,9 @@ const adminSchema = new mongoose.Schema({
 
 
 adminSchema.methods.createPasswordResetToken = function () {
-    const rawToken = (crypto.randomInt(0, 1000000)).toString().padStart(6, '0');
+    const rawToken = (crypto.randomInt(0, 1000000)).toString().padStart(6, '0'); // e.g., "034159"
     this.resetPasswordToken = crypto.createHash('sha256').update(rawToken).digest('hex');
     this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+    return rawToken;
 };
-
 module.exports = mongoose.model('Admin', adminSchema);

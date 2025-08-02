@@ -77,7 +77,7 @@ class UserController {
         try {
             const { email } = req.body;
             await UserService.forgotPassword(email);
-            sendSuccessResponse(res, { message: 'Reset PIN sent to email' });
+            sendSuccessResponse(res, { message: 'Reset TOKEN sent to email' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }

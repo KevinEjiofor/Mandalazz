@@ -30,21 +30,38 @@ class AdminAuthService {
             { expiresIn: '3h' }
         );
 
-        const subject = 'Login Alert';
-        const text = `Hi ${admin.name},\n\nYou just logged in to the platform.\n\nIf this wasn't you, please contact support immediately.\n\nThank you!`;
+        const subject = 'New Admin Login Detected';
+        const text = `Hi ${admin.name},
+
+We noticed a login to your admin account just now (UTC time: ${new Date().toISOString()}).
+
+If this was you, no further action is needed.
+If you did not initiate this login, please change your password immediately and review access logs.
+
+Thank you,
+Support Team`;
+
         await userNotifications(email, subject, text);
 
         return token;
     }
 
     async createAdminAccount(name, email, password) {
-        await checkIfAdminExists(name, email); // should validate both uniqueness
+        await checkIfAdminExists(name, email);
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const newAdmin = await createAdmin(name, email, hashedPassword);
 
-        const subject = 'Welcome to the Platform';
-        const text = `Hi ${name},\n\nYour admin account has been successfully created.\n\nThank you!`;
+        const subject = 'Admin Account Created';
+        const text = `Hi ${name},
+
+Your admin account has been successfully created. You can now log in with your credentials.
+
+If you did not request this account, please contact support.
+
+Best regards,
+Support Team`;
+
         await userNotifications(email, subject, text);
 
         return newAdmin;
@@ -56,45 +73,44 @@ class AdminAuthService {
             throw new Error('Admin not found with this email');
         }
 
-
         const rawResetToken = admin.createPasswordResetToken();
         await admin.save();
 
-        const subject = 'Password Reset Token';
-        const text = `Hi ${admin.name},\n\nYour new password reset Token is: ${rawResetToken}\nIt will expire in 10 minutes.\n\nThank you!`;
-        await userNotifications(email, subject, text);
+        const subject = 'Password Reset PIN';
+        const text = `Hi ${admin.name},
 
+We received a request to reset your password. Use the PIN below to proceed:
+
+Reset TOKEN: ${rawResetToken}
+
+This TOKEN will expire in 10 minutes. If you did not request a password reset, ignore this message or contact support.
+
+Regards,
+Support Team`;
+
+        await userNotifications(email, subject, text);
         return rawResetToken;
     }
 
-    async validateResetToken(email, token) {
-        const admin = await findAdminByEmail(email);
-        if (!admin) {
-            throw new Error('Admin not found with this email');
-        }
-
+    async validateResetToken(token) {
         if (!token) throw new Error('Reset token required');
 
         const cleaned = token.trim();
         const hashed = crypto.createHash('sha256').update(cleaned).digest('hex');
 
-        if (
-            admin.resetPasswordToken !== hashed ||
-            !admin.resetPasswordExpire ||
-            admin.resetPasswordExpire < Date.now()
-        ) {
+        const admin = await Admin.findOne({
+            resetPasswordToken: hashed,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!admin) {
             throw new Error('Invalid or expired reset token');
         }
 
         return true;
     }
 
-    async resetPassword(email, token, newPassword) {
-        const admin = await findAdminByEmail(email);
-        if (!admin) {
-            throw new Error('Admin not found with this email');
-        }
-
+    async resetPassword(token, newPassword) {
         if (!token) throw new Error('Reset token required');
         if (!newPassword || newPassword.length < 6) {
             throw new Error('New password must be at least 6 characters long');
@@ -103,11 +119,12 @@ class AdminAuthService {
         const cleaned = token.trim();
         const hashed = crypto.createHash('sha256').update(cleaned).digest('hex');
 
-        if (
-            admin.resetPasswordToken !== hashed ||
-            !admin.resetPasswordExpire ||
-            admin.resetPasswordExpire < Date.now()
-        ) {
+        const admin = await Admin.findOne({
+            resetPasswordToken: hashed,
+            resetPasswordExpire: { $gt: Date.now() }
+        });
+
+        if (!admin) {
             throw new Error('Invalid or expired reset token');
         }
 
@@ -137,9 +154,12 @@ class AdminAuthService {
             throw new Error('New password must be different from current password');
         }
 
+        if (!newPassword || newPassword.length < 6) {
+            throw new Error('New password must be at least 6 characters long');
+        }
+
         const hashedNew = await bcrypt.hash(newPassword, 10);
         await updatePassword(adminId, hashedNew);
-
         return true;
     }
 
@@ -147,10 +167,12 @@ class AdminAuthService {
         return { message: 'Logout successful' };
     }
 
+
     async getUserOverviews(page = 1, limit = 10) {
         const skip = (page - 1) * limit;
-        const users = await require('../../user/data/models/userModel')
-            .find()
+        const User = require('../../user/data/models/userModel');
+
+        const users = await User.find()
             .select('firstName lastName role activityLogs createdAt')
             .populate('checkouts')
             .sort({ createdAt: -1 })
@@ -166,7 +188,7 @@ class AdminAuthService {
             checkouts: user.checkouts
         }));
 
-        const totalUsers = await require('../../user/data/models/userModel').countDocuments();
+        const totalUsers = await User.countDocuments();
 
         return {
             users: formattedUsers,
