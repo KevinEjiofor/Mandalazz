@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const RoleEnum = require("../../../config/roleEnum");
 
 const adminSchema = new mongoose.Schema({
@@ -35,7 +36,14 @@ const adminSchema = new mongoose.Schema({
     resetPasswordExpire: {
         type: Date,
         default: null
-    },
-});
+    }
+}, { timestamps: true });
+
+
+adminSchema.methods.createPasswordResetToken = function () {
+    const rawToken = (crypto.randomInt(0, 1000000)).toString().padStart(6, '0');
+    this.resetPasswordToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+};
 
 module.exports = mongoose.model('Admin', adminSchema);

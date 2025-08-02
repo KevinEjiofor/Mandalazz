@@ -1,6 +1,5 @@
 const AdminAuthService = require('../services/AdminAuthService');
 const { sendErrorResponse, sendSuccessResponse } = require('../../utils/respondHandler');
-const {getIO} = require("../../utils/socketHandler");
 
 class AdminController {
     async login(req, res) {
@@ -27,7 +26,7 @@ class AdminController {
         try {
             const { email } = req.body;
             await AdminAuthService.forgotPassword(email);
-            sendSuccessResponse(res, { message: 'Reset token sent to email' });
+            sendSuccessResponse(res, { message: 'Reset PIN sent to email' });
         } catch (error) {
             sendErrorResponse(res, error.message);
         }
@@ -53,6 +52,30 @@ class AdminController {
         }
     }
 
+    async changePassword(req, res) {
+        try {
+            if (!req.user) {
+                return sendErrorResponse(res, 'Authentication required', 401);
+            }
+
+            const { id: adminId } = req.user;
+            const { oldPassword, newPassword } = req.body;
+
+            if (!oldPassword || !newPassword) {
+                return sendErrorResponse(res, 'Old and new password are required', 400);
+            }
+
+            if (newPassword.length < 6) {
+                return sendErrorResponse(res, 'New password must be at least 6 characters long', 400);
+            }
+
+            await AdminAuthService.changePassword(adminId, oldPassword, newPassword);
+            sendSuccessResponse(res, { message: 'Password changed successfully' });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
     async logout(req, res) {
         try {
             const result = AdminAuthService.logoutUser();
@@ -61,6 +84,7 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
+
     async getUserOverviews(req, res) {
         try {
             const { page = 1, limit = 10 } = req.query;
@@ -70,9 +94,6 @@ class AdminController {
             sendErrorResponse(res, error.message);
         }
     }
-
-
-
 }
 
 module.exports = new AdminController();
