@@ -178,7 +178,6 @@ The  Everything Mandelazz Support Team
         return userSafe;
     }
 
-
     static async changePassword(userId, oldPassword, newPassword) {
         const user = await UserRepository.getUserWithPassword(userId);
         if (!user) {
@@ -202,17 +201,59 @@ The  Everything Mandelazz Support Team
         const subject = 'Password Changed';
         const text = `Hi ${user.firstName},
 
-
 This is a notification that your account password was successfully changed. If you did not perform this action, please contact support immediately or reset your password again.
 
 Regards,
-The  Everything Mandelazz Support Security Team
+The Everything Mandelazz Support Security Team
 `;
 
-        await sendEmail(email, subject, text);
+        // send notification but don’t let email failure stop the flow
+        try {
+            await sendEmail(user.email, subject, text);
+        } catch (emailErr) {
+            console.error('Failed to send password-change notification email:', emailErr);
+            // optionally: record this in a log store, but do not throw
+        }
 
         return true;
     }
+
+
+
+//     static async changePassword(userId, oldPassword, newPassword) {
+//         const user = await UserRepository.getUserWithPassword(userId);
+//         if (!user) {
+//             throw new Error('User not found');
+//         }
+//
+//         const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+//         if (!isOldPasswordValid) {
+//             throw new Error('Current password is incorrect');
+//         }
+//
+//         const isSamePassword = await bcrypt.compare(newPassword, user.password);
+//         if (isSamePassword) {
+//             throw new Error('New password must be different from current password');
+//         }
+//
+//         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+//         await UserRepository.updatePassword(userId, hashedNewPassword);
+//         await UserRepository.logUserActivity(userId, 'Password changed');
+//
+//         const subject = 'Password Changed';
+//         const text = `Hi ${user.firstName},
+//
+//
+// This is a notification that your account password was successfully changed. If you did not perform this action, please contact support immediately or reset your password again.
+//
+// Regards,
+// The  Everything Mandelazz Support Security Team
+// `;
+//
+//         await sendEmail(email, subject, text);
+//
+//         return true;
+//     }
 
     static async handleUserSessionData(userId, guestId) {
         try {
