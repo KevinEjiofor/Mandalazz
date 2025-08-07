@@ -61,6 +61,10 @@ const userSchema = new mongoose.Schema({
             timestamp: { type: Date, default: Date.now }
         }
     ],
+    checkouts: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Checkout'
+    }],
     emailVerified: {
         type: Boolean,
         default: false
