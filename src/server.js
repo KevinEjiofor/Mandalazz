@@ -85,6 +85,10 @@ app.use(session({
 
 app.use(guestMiddleware);
 
+app.get('/health', (req, res) => {
+    res.status(200).send('Healthy');
+});
+
 
 app.use('/api/admin', adminRoutes);
 app.use('/api/user', userRoutes);
