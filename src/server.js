@@ -26,6 +26,7 @@ const ratingRoutes = require('./routes/ratingRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const addressRoutes = require('./routes/addressRoutes.');
+const  analyticsRoutes = require('./routes/analyticsRoutes');
 
 // Create Express app and HTTP server
 const app = express();
@@ -97,6 +98,7 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api/recentview', recentViewRoutes);
 app.use('/api/address', addressRoutes);
 app.use('/api/location', locationRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 
 app.get('/', (req, res) => {

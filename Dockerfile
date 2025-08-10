@@ -26,5 +26,5 @@ RUN chown -R nodejs:nodejs /app
 # Use non-root user
 USER nodejs
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application in dev mode
+CMD ["npm", "run", "dev"]
