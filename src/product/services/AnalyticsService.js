@@ -1,6 +1,7 @@
 const CheckoutRepo = require('../../checkout/data/repositories/CheckoutRepository');
 const productRepo = require('../data/repositories/ProductRepository');
-const CheckoutStatus = require('../../config/checkoutStatus');
+const CheckoutStatus = require('../../enums/checkoutStatus');
+const Month = require('../../enums/Month');
 
 class AnalyticsService {
 
@@ -281,35 +282,19 @@ class AnalyticsService {
                 targetMonth = month;
                 [targetYear, targetMonthNum] = month.split('-').map(Number);
             } else if (month) {
-                // Handle month names or numbers
-                const monthLower = month.toLowerCase();
+                // Handle month names using Month enum
+                const monthData = Month.getMonthByName(month);
 
-                // Month name mapping
-                const monthNames = {
-                    'january': 1, 'jan': 1,
-                    'february': 2, 'feb': 2,
-                    'march': 3, 'mar': 3,
-                    'april': 4, 'apr': 4,
-                    'may': 5,
-                    'june': 6, 'jun': 6,
-                    'july': 7, 'jul': 7,
-                    'august': 8, 'aug': 8,
-                    'september': 9, 'sep': 9,
-                    'october': 10, 'oct': 10,
-                    'november': 11, 'nov': 11,
-                    'december': 12, 'dec': 12
-                };
-
-                if (monthNames[monthLower]) {
+                if (monthData) {
                     // It's a month name
-                    targetMonthNum = monthNames[monthLower];
+                    targetMonthNum = monthData.number;
                     targetYear = year || new Date().getFullYear();
                 } else {
                     // It's a number
                     targetMonthNum = parseInt(month);
                     targetYear = year || new Date().getFullYear();
 
-                    if (isNaN(targetMonthNum) || targetMonthNum < 1 || targetMonthNum > 12) {
+                    if (!Month.isValidMonthNumber(targetMonthNum)) {
                         throw new Error('Invalid month number. Must be between 1 and 12');
                     }
                 }
@@ -339,15 +324,12 @@ class AnalyticsService {
                 return sum + parseFloat(order.totalAmount.toString());
             }, 0);
 
-            // Get month name
-            const monthNames = [
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
-            ];
+            // Get month name using Month enum
+            const monthData = Month.getMonthByNumber(targetMonthNum);
 
             return {
                 month: targetMonth,
-                monthName: monthNames[targetMonthNum - 1],
+                monthName: monthData ? monthData.name : 'Unknown',
                 year: targetYear,
                 revenue: parseFloat(totalRevenue.toFixed(2)),
                 orderCount: orders.length,

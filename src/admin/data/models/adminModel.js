@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
-const RoleEnum = require("../../../config/roleEnum");
+const RoleEnum = require("../../../enums/roleEnum");
 
 const adminSchema = new mongoose.Schema({
     name: {

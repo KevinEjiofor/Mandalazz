@@ -6,7 +6,7 @@ const { initializePayment } = require('../../utils/paystackHandler');
 const { userNotifications } = require('../../utils/emailHandler');
 const { getIO } = require('../../utils/socketHandler');
 const NotificationService = require('../../notification/service/NotificationService');
-const CheckoutStatus = require('../../config/checkoutStatus');
+const CheckoutStatus = require('../../enums/checkoutStatus');
 const {generateOrderNumber} = require('../../utils/tokenGenerator');
 
 class CheckoutService {

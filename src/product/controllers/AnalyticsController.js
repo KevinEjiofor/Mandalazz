@@ -1,22 +1,9 @@
 const AnalyticsService = require('../services/AnalyticsService');
+const Month = require('../../enums/Month');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
 
 class AnalyticsController {
-    constructor() {
-        // Bind all methods to preserve 'this' context
-        this.getDashboardAnalytics = this.getDashboardAnalytics.bind(this);
-        this.getTotalSales = this.getTotalSales.bind(this);
-        this.getProductAnalytics = this.getProductAnalytics.bind(this);
-        this.getOrderAnalytics = this.getOrderAnalytics.bind(this);
-        this.getRevenueByPaymentType = this.getRevenueByPaymentType.bind(this);
-        this.getTopSellingProducts = this.getTopSellingProducts.bind(this);
-        this.getAnalyticsByDateRange = this.getAnalyticsByDateRange.bind(this);
-        this.getMonthlySales = this.getMonthlySales.bind(this);
-        this.getMonthlySalesTrend = this.getMonthlySalesTrend.bind(this);
-        this.getQuickSummary = this.getQuickSummary.bind(this);
-    }
-
-    async getDashboardAnalytics(req, res) {
+    static async getDashboardAnalytics(req, res) {
         try {
             const analytics = await AnalyticsService.getDashboardAnalytics();
             sendSuccessResponse(res, 'Dashboard analytics retrieved successfully', analytics);
@@ -26,7 +13,7 @@ class AnalyticsController {
         }
     }
 
-    async getTotalSales(req, res) {
+    static async getTotalSales(req, res) {
         try {
             const salesData = await AnalyticsService.getTotalSalesAfterDelivery();
             sendSuccessResponse(res, 'Total sales retrieved successfully', salesData);
@@ -36,7 +23,7 @@ class AnalyticsController {
         }
     }
 
-    async getProductAnalytics(req, res) {
+    static async getProductAnalytics(req, res) {
         try {
             const productData = await AnalyticsService.getTotalProducts();
             sendSuccessResponse(res, 'Product analytics retrieved successfully', productData);
@@ -46,7 +33,7 @@ class AnalyticsController {
         }
     }
 
-    async getOrderAnalytics(req, res) {
+    static async getOrderAnalytics(req, res) {
         try {
             const orderData = await AnalyticsService.getOrderStatistics();
             sendSuccessResponse(res, 'Order analytics retrieved successfully', orderData);
@@ -56,7 +43,7 @@ class AnalyticsController {
         }
     }
 
-    async getRevenueByPaymentType(req, res) {
+    static async getRevenueByPaymentType(req, res) {
         try {
             const revenueData = await AnalyticsService.getRevenueByPaymentType();
             sendSuccessResponse(res, 'Revenue by payment type retrieved successfully', revenueData);
@@ -66,7 +53,7 @@ class AnalyticsController {
         }
     }
 
-    async getTopSellingProducts(req, res) {
+    static async getTopSellingProducts(req, res) {
         try {
             const { limit = 5 } = req.query;
             const limitNum = parseInt(limit);
@@ -86,7 +73,7 @@ class AnalyticsController {
         }
     }
 
-    async getAnalyticsByDateRange(req, res) {
+    static async getAnalyticsByDateRange(req, res) {
         try {
             const { startDate, endDate } = req.query;
 
@@ -118,16 +105,16 @@ class AnalyticsController {
         }
     }
 
-    async getMonthlySales(req, res) {
+    static async getMonthlySales(req, res) {
         try {
             const { months, month, year } = req.query;
 
             // Validate inputs
-            if (month && !this._isValidMonthFormat(month, year)) {
+            if (month && !AnalyticsController._isValidMonthFormat(month, year)) {
                 return sendErrorResponse(res, 'Invalid month format. Use YYYY-MM or provide both month (MM) and year', 400);
             }
 
-            if (months && (!this._isValidNumber(months, 1, 24))) {
+            if (months && (!AnalyticsController._isValidNumber(months, 1, 24))) {
                 return sendErrorResponse(res, 'Months must be a number between 1 and 24', 400);
             }
 
@@ -162,7 +149,7 @@ class AnalyticsController {
         }
     }
 
-    async getMonthlySalesTrend(req, res) {
+    static async getMonthlySalesTrend(req, res) {
         try {
             const { months = 12 } = req.query;
             const monthsNum = parseInt(months);
@@ -182,7 +169,7 @@ class AnalyticsController {
         }
     }
 
-    async getQuickSummary(req, res) {
+    static async getQuickSummary(req, res) {
         try {
             const [salesData, productData, orderData] = await Promise.all([
                 AnalyticsService.getTotalSalesAfterDelivery(),
@@ -207,12 +194,12 @@ class AnalyticsController {
         }
     }
 
-    _isValidNumber(value, min, max) {
+    static _isValidNumber(value, min, max) {
         const num = parseInt(value);
         return !isNaN(num) && num >= min && num <= max;
     }
 
-    _isValidMonthFormat(month, year) {
+    static _isValidMonthFormat(month, year) {
         if (!month) return !!year;
 
         // Handle YYYY-MM format
@@ -222,49 +209,31 @@ class AnalyticsController {
             const monthNum = parseInt(monthPart);
 
             return yearNum >= 2020 && yearNum <= new Date().getFullYear() + 1 &&
-                monthNum >= 1 && monthNum <= 12;
+                Month.isValidMonthNumber(monthNum);
         }
 
-        // Handle month names
-        const monthLower = month.toLowerCase();
-        const monthNames = {
-            'january': 1, 'jan': 1,
-            'february': 2, 'feb': 2,
-            'march': 3, 'mar': 3,
-            'april': 4, 'apr': 4,
-            'may': 5,
-            'june': 6, 'jun': 6,
-            'july': 7, 'jul': 7,
-            'august': 8, 'aug': 8,
-            'september': 9, 'sep': 9,
-            'october': 10, 'oct': 10,
-            'november': 11, 'nov': 11,
-            'december': 12, 'dec': 12
-        };
-
-        if (monthNames[monthLower]) {
-
+        // Handle month names using Month enum
+        if (Month.isValidMonthName(month)) {
             if (year) {
                 const yearNum = parseInt(year);
                 return yearNum >= 2020 && yearNum <= new Date().getFullYear() + 1;
             }
-
             return true;
         }
 
-
+        // Handle numeric month with year
         if (year) {
             const monthNum = parseInt(month);
             const yearNum = parseInt(year);
 
-            return !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12 &&
+            return Month.isValidMonthNumber(monthNum) &&
                 yearNum >= 2020 && yearNum <= new Date().getFullYear() + 1;
         }
 
-
+        // Handle numeric month without year
         const monthNum = parseInt(month);
-        return !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12;
+        return Month.isValidMonthNumber(monthNum);
     }
 }
 
-module.exports = new AnalyticsController();
+module.exports = AnalyticsController;
