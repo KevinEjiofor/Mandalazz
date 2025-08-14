@@ -5,12 +5,18 @@ const User = require('../user/data/models/userModel');
 
 const authMiddleware = async (req, res, next) => {
     const token = req.headers['authorization']?.split(' ')[1];
+
     if (!token) {
         return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
+
+        if (!decoded || !decoded.id || !decoded.role) {
+            return res.status(401).json({ message: 'Invalid token structure' });
+        }
+
         req.user = decoded;
 
         if (decoded.role === 'admin') {
@@ -21,11 +27,9 @@ const authMiddleware = async (req, res, next) => {
             req.admin = admin;
         } else if (decoded.role === 'user') {
             const user = await User.findById(decoded.id);
-
             if (!user) {
                 return res.status(401).json({ message: 'User not found or unauthorized' });
             }
-
             req.userDetails = user;
         } else {
             return res.status(403).json({ message: 'Invalid role' });
@@ -33,7 +37,6 @@ const authMiddleware = async (req, res, next) => {
 
         next();
     } catch (err) {
-        console.error(err);
         return res.status(401).json({ message: 'Token is not valid' });
     }
 };
@@ -52,7 +55,7 @@ const authorize = (roles) => {
     };
 };
 
-// Export both ways to support different import styles
 module.exports = authMiddleware;
 module.exports.authenticate = authMiddleware;
 module.exports.authorize = authorize;
+

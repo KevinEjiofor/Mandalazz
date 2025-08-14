@@ -5,7 +5,8 @@ const CheckoutStatus = Object.freeze({
         OUT_FOR_DELIVERY: 'out_for_delivery',
         DELIVERED: 'delivered',
         SHIPPED: 'shipped',
-        CANCELLED: 'cancelled'
+        CANCELLED: 'cancelled',
+        REJECTED: 'rejected'
 
 
 });

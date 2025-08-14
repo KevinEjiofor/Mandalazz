@@ -28,7 +28,6 @@
 #
 ## Start the application in dev mode
 #CMD ["npm", "run", "dev"]
-
 FROM node:20
 
 WORKDIR /app
@@ -48,4 +47,3 @@ USER nodejs
 
 # Use production start
 CMD ["npm", "start"]
-

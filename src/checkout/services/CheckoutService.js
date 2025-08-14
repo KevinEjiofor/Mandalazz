@@ -93,7 +93,7 @@ class CheckoutService {
     static async _processPaymentOnDelivery(user, addressDetails, cart, estimatedDelivery, cancellationDeadline) {
         const payload = {
             user: user._id,
-            orderNumber: generateOrderNumber,
+            orderNumber: generateOrderNumber(),
             products: cart.items,
             totalAmount: cart.totalAmount,
             userDetails: addressDetails,
@@ -119,7 +119,7 @@ class CheckoutService {
 
         const checkout = await CheckoutRepo.create({
             user: user._id,
-            orderNumber: generateOrderNumber,
+            orderNumber: generateOrderNumber(),
             products: cart.items,
             totalAmount: amount,
             userDetails: addressDetails,
