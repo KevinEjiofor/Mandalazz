@@ -11,7 +11,6 @@ const {generateOrderNumber} = require('../../utils/tokenGenerator');
 
 class CheckoutService {
 
-
     static validateCheckoutRequest(userDetails, paymentType) {
         if (!['payment_on_delivery', 'online_payment'].includes(paymentType)) {
             throw new Error('Invalid payment type');
@@ -105,10 +104,13 @@ class CheckoutService {
         };
 
         const checkout = await CheckoutRepo.create(payload);
-        await CartService.clearCart(user._id);
-        this._notifyUserAndAdmin(user, checkout, 'payment_on_delivery');
+        // Get the secure version with populated data
+        const secureCheckout = await CheckoutRepo.findByIdSecure(checkout._id);
 
-        return checkout;
+        await CartService.clearCart(user._id);
+        this._notifyUserAndAdmin(user, secureCheckout, 'payment_on_delivery');
+
+        return secureCheckout;
     }
 
     static async _processOnlinePayment(user, addressDetails, cart, estimatedDeliveryDate, cancellationDeadline) {
@@ -134,21 +136,26 @@ class CheckoutService {
         const { data: { authorization_url } = {} } = await initializePayment(addressDetails.email, amount, { reference });
         if (!authorization_url) throw new Error('Payment initialization failed');
 
-        await CartService.clearCart(user._id);
-        this._notifyUserAndAdmin(user, checkout, 'online_payment', reference);
+        // Get the secure version with populated data
+        const secureCheckout = await CheckoutRepo.findByIdSecure(checkout._id);
 
-        return { checkout, paymentUrl: authorization_url };
+        await CartService.clearCart(user._id);
+        this._notifyUserAndAdmin(user, secureCheckout, 'online_payment', reference);
+
+        return { checkout: secureCheckout, paymentUrl: authorization_url };
     }
 
     static async handlePaymentWebhook(reference, { status }) {
-        const checkout = await CheckoutRepo.findByReference(reference);
+        // Use secure method
+        const checkout = await CheckoutRepo.findByReferenceSecure(reference);
         if (!checkout) throw new Error('Checkout not found');
 
         const newStatus = status === 'success' ? 'paid' : 'failed';
-        const updated = await CheckoutRepo.updateStatus(checkout._id, { paymentStatus: newStatus });
-        const user = await User.findById(updated.user).catch(() => null);
+        // Use secure update method
+        const updated = await CheckoutRepo.updateStatusSecure(checkout._id, { paymentStatus: newStatus });
 
-        this._notifyUserAndAdmin(user, updated, 'payment_status_update');
+        // User is already populated in the checkout object from secure methods
+        this._notifyUserAndAdmin(updated.user, updated, 'payment_status_update');
 
         if (updated.paymentStatus === 'paid') {
             await userNotifications(
@@ -166,7 +173,8 @@ class CheckoutService {
             throw new Error('Invalid payment status');
         }
 
-        const existing = await CheckoutRepo.findById(checkoutId);
+        // Use secure method
+        const existing = await CheckoutRepo.findByIdSecure(checkoutId);
         if (!existing) throw new Error('Checkout not found');
 
         if (existing.paymentType !== 'payment_on_delivery') {
@@ -177,9 +185,11 @@ class CheckoutService {
             throw new Error('Order is already paid');
         }
 
-        const updated = await CheckoutRepo.updateStatus(checkoutId, { paymentStatus });
-        const user = await User.findById(updated.user);
-        this._notifyUserAndAdmin(user, updated, 'payment_status_update');
+        // Use secure update method
+        const updated = await CheckoutRepo.updatePaymentStatusSecure(checkoutId, paymentStatus);
+
+        // User is already populated in the updated object from secure methods
+        this._notifyUserAndAdmin(updated.user, updated, 'payment_status_update');
 
         return updated;
     }
@@ -190,21 +200,23 @@ class CheckoutService {
             throw new Error('Invalid delivery status');
         }
 
-        const updated = await CheckoutRepo.updateStatus(checkoutId, { deliveryStatus: newDeliveryStatus });
-        const user = await User.findById(updated.user);
+        // Use secure update method
+        const updated = await CheckoutRepo.updateDeliveryStatusSecure(checkoutId, newDeliveryStatus);
 
+        // User is already populated in the updated object from secure methods
         await userNotifications(
             updated.userDetails.email,
             'Delivery Status Update',
             `Dear ${updated.userDetails.firstName}, your order ${updated.orderNumber} delivery status is now: ${newDeliveryStatus}`
         );
 
-        this._notifyUserAndAdmin(user, updated, 'delivery_status_update');
+        this._notifyUserAndAdmin(updated.user, updated, 'delivery_status_update');
         return updated;
     }
 
     static async cancelCheckout(checkoutId) {
-        const checkout = await CheckoutRepo.findById(checkoutId);
+        // Use secure method
+        const checkout = await CheckoutRepo.findByIdSecure(checkoutId);
         if (!checkout) throw new Error('Checkout not found');
 
         if (new Date() > new Date(checkout.cancellationDeadline)) {
@@ -216,22 +228,26 @@ class CheckoutService {
         }
 
         await CheckoutRepo.deleteById(checkoutId);
-        const user = await User.findById(checkout.user);
-        this._notifyUserAndAdmin(user, checkout, 'checkout_cancelled');
+
+        // User is already populated in the checkout object from secure methods
+        this._notifyUserAndAdmin(checkout.user, checkout, 'checkout_cancelled');
 
         return checkout;
     }
 
     static getCheckoutById(id) {
-        return CheckoutRepo.findById(id);
+        // Use secure method
+        return CheckoutRepo.findByIdSecure(id);
     }
 
     static getCheckouts() {
-        return CheckoutRepo.find();
+        // Use secure method
+        return CheckoutRepo.findSecure();
     }
 
     static getUserCheckouts(userId) {
-        return CheckoutRepo.find({ user: userId });
+        // Use secure method
+        return CheckoutRepo.findByUserSecure(userId);
     }
 
     static searchCheckouts(params) {
@@ -248,11 +264,12 @@ class CheckoutService {
         if (params.city) query['userDetails.city'] = { $regex: params.city, $options: 'i' };
 
 
-        return CheckoutRepo.find(query);
+        return CheckoutRepo.findSecure(query);
     }
 
     static async getLocationStatistics() {
-        const checkouts = await CheckoutRepo.find();
+
+        const checkouts = await CheckoutRepo.findSecure();
         const locationStats = {};
 
         checkouts.forEach(checkout => {
@@ -286,6 +303,8 @@ class CheckoutService {
 
     static _notifyUserAndAdmin(user, checkout, eventType, reference = null) {
         const socket = getIO();
+
+        // Since we're now passing populated user objects directly, we can use them as-is
         const customerName = checkout.userDetails
             ? `${checkout.userDetails.firstName} ${checkout.userDetails.lastName}`
             : `${user.firstName} ${user.lastName}`;
@@ -295,7 +314,7 @@ class CheckoutService {
         const payload = {
             checkoutId: checkout._id,
             orderNumber: checkout.orderNumber,
-            userId: user._id,
+            // Don't try to access user._id since it's been removed by sanitizeResponse
             customerName,
             firstName: checkout.userDetails?.firstName || user.firstName,
             lastName: checkout.userDetails?.lastName || user.lastName,

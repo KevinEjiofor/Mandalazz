@@ -67,7 +67,7 @@ class ProductService {
             const updatedProduct = await productRepo.updateProduct(product, cleanUpdateData);
             return { message: 'Product updated successfully', product: updatedProduct };
         } catch (error) {
-            // Cleanup uploaded files on error
+
             if (files && files.length > 0) {
                 await this.cleanupFiles(files);
             }

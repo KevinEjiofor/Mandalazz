@@ -13,7 +13,72 @@ const { checkIfAdminExists } = require('../../utils/validation');
 const Admin = require('../data/models/adminModel');
 
 class AdminAuthService {
-    async authenticateAdmin(email, password) {
+    formatDateTime(date) {
+        const options = {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'UTC'
+        };
+        return date.toLocaleDateString('en-US', options);
+    }
+
+    getClientInfo(req) {
+        let ip = 'Unknown';
+
+        if (req) {
+            ip = req.headers['x-forwarded-for'] ||
+                req.headers['x-real-ip'] ||
+                req.headers['x-client-ip'] ||
+                req.headers['cf-connecting-ip'] ||
+                req.connection?.remoteAddress ||
+                req.socket?.remoteAddress ||
+                req.ip ||
+                req.raw?.connection?.remoteAddress ||
+                'Unknown';
+
+            if (ip && ip.includes(',')) {
+                ip = ip.split(',')[0].trim();
+            }
+
+            if (ip && ip.startsWith('::ffff:')) {
+                ip = ip.substring(7);
+            }
+        }
+
+        const userAgent = req?.get ? req.get('User-Agent') : req?.headers?.['user-agent'] || 'Unknown';
+
+        return { ip, userAgent };
+    }
+
+    async getLocationFromIP(ip) {
+        if (!ip || ip === 'Unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
+            return 'Local/Private Network';
+        }
+
+        try {
+            const response = await fetch(`http://ipapi.co/${ip}/json/`, {
+                timeout: 3000
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.city && data.country_name) {
+                    return `${data.city}, ${data.country_name}`;
+                } else if (data.country_name) {
+                    return data.country_name;
+                }
+            }
+        } catch (error) {
+            // Silent fail for location detection
+        }
+
+        return 'Unknown Location';
+    }
+
+    async authenticateAdmin(email, password, req = null) {
         const admin = await findAdminByEmail(email);
         if (!admin) {
             throw new Error('Invalid email or password');
@@ -30,16 +95,24 @@ class AdminAuthService {
             { expiresIn: '3h' }
         );
 
-        const subject = 'New Admin Login Detected';
+        const clientInfo = this.getClientInfo(req);
+        const location = await this.getLocationFromIP(clientInfo.ip);
+        const loginTime = this.formatDateTime(new Date());
+
+        const subject = 'Admin Login Alert';
         const text = `Hi ${admin.name},
 
-We noticed a login to your admin account just now (UTC time: ${new Date().toISOString()}).
+New admin login detected:
 
-If this was you, no further action is needed.
-If you did not initiate this login, please change your password immediately and review access logs.
+Time: ${loginTime}
+IP: ${clientInfo.ip}
+Location: ${location}
+Device: ${clientInfo.userAgent}
 
-Thank you,
-Support Team`;
+If this wasn't you, change your password immediately and contact security@yourcompany.com.
+
+Stay secure,
+Security Team`;
 
         await userNotifications(email, subject, text);
 
@@ -52,15 +125,26 @@ Support Team`;
         const hashedPassword = await bcrypt.hash(password, 10);
         const newAdmin = await createAdmin(name, email, hashedPassword);
 
+        const creationTime = this.formatDateTime(new Date());
+
         const subject = 'Admin Account Created';
-        const text = `Hi ${name},
+        const text = `Welcome ${name}!
 
-Your admin account has been successfully created. You can now log in with your credentials.
+Your admin account is ready:
 
-If you did not request this account, please contact support.
+Email: ${email}
+Created: ${creationTime}
+Login: https://yourcompany.com/admin
 
-Best regards,
-Support Team`;
+Security tips:
+• Use a strong password
+• Enable 2FA when available
+• Never share your credentials
+
+Need help? Contact support@yourcompany.com
+
+Welcome aboard!
+Admin Team`;
 
         await userNotifications(email, subject, text);
 
@@ -76,17 +160,22 @@ Support Team`;
         const rawResetToken = admin.createPasswordResetToken();
         await admin.save();
 
-        const subject = 'Password Reset PIN';
+        const requestTime = this.formatDateTime(new Date());
+
+        const subject = 'Password Reset Request';
         const text = `Hi ${admin.name},
 
-We received a request to reset your password. Use the PIN below to proceed:
+Password reset requested for ${email}
 
-Reset TOKEN: ${rawResetToken}
+Reset Token: ${rawResetToken}
+Requested: ${requestTime}
+Expires: 10 minutes
 
-This TOKEN will expire in 10 minutes. If you did not request a password reset, ignore this message or contact support.
+Use this token to reset your password. Keep it secure!
 
-Regards,
-Support Team`;
+Didn't request this? Ignore this email.
+
+Security Team`;
 
         await userNotifications(email, subject, text);
         return rawResetToken;
@@ -133,6 +222,24 @@ Support Team`;
         admin.resetPasswordExpire = undefined;
         await admin.save();
 
+        const resetTime = this.formatDateTime(new Date());
+
+        const subject = 'Password Reset Complete';
+        const confirmationText = `Hi ${admin.name},
+
+Your password was successfully reset.
+
+Account: ${admin.email}
+Reset: ${resetTime}
+
+Login with your new password at: https://yourcompany.com/admin
+
+If you didn't do this, contact security@yourcompany.com immediately.
+
+Security Team`;
+
+        await userNotifications(admin.email, subject, confirmationText);
+
         const safeAdmin = admin.toObject();
         delete safeAdmin.password;
         return safeAdmin;
@@ -160,13 +267,29 @@ Support Team`;
 
         const hashedNew = await bcrypt.hash(newPassword, 10);
         await updatePassword(adminId, hashedNew);
+
+        const changeTime = this.formatDateTime(new Date());
+
+        const subject = 'Password Changed';
+        const text = `Hi ${admin.name},
+
+Your admin password was changed successfully.
+
+Account: ${admin.email}
+Changed: ${changeTime}
+
+If you didn't make this change, contact security@yourcompany.com immediately.
+
+Security Team`;
+
+        await userNotifications(admin.email, subject, text);
+
         return true;
     }
 
     logoutUser() {
         return { message: 'Logout successful' };
     }
-
 
     async getUserOverviews(page = 1, limit = 10) {
         const skip = (page - 1) * limit;

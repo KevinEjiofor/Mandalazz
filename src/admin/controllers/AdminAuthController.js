@@ -2,10 +2,12 @@ const AdminAuthService = require('../services/AdminAuthService');
 const { sendErrorResponse, sendSuccessResponse } = require('../../utils/respondHandler');
 
 class AdminController {
+
     async login(req, res) {
         try {
             const { email, password } = req.body;
-            const token = await AdminAuthService.authenticateAdmin(email, password);
+
+            const token = await AdminAuthService.authenticateAdmin(email, password, req);
             sendSuccessResponse(res, {
                 message: 'Login successful',
                 data: { token }

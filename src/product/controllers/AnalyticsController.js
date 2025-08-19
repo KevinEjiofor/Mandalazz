@@ -202,7 +202,6 @@ class AnalyticsController {
     static _isValidMonthFormat(month, year) {
         if (!month) return !!year;
 
-        // Handle YYYY-MM format
         if (month.includes('-')) {
             const [yearPart, monthPart] = month.split('-');
             const yearNum = parseInt(yearPart);
@@ -212,7 +211,6 @@ class AnalyticsController {
                 Month.isValidMonthNumber(monthNum);
         }
 
-        // Handle month names using Month enum
         if (Month.isValidMonthName(month)) {
             if (year) {
                 const yearNum = parseInt(year);
@@ -221,7 +219,7 @@ class AnalyticsController {
             return true;
         }
 
-        // Handle numeric month with year
+
         if (year) {
             const monthNum = parseInt(month);
             const yearNum = parseInt(year);
@@ -230,7 +228,6 @@ class AnalyticsController {
                 yearNum >= 2020 && yearNum <= new Date().getFullYear() + 1;
         }
 
-        // Handle numeric month without year
         const monthNum = parseInt(month);
         return Month.isValidMonthNumber(monthNum);
     }
