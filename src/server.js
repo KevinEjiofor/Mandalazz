@@ -85,7 +85,7 @@ app.use(session({
 
 app.use(guestMiddleware);
 
-app.get('/health', (req, res) => {
+app.get('api/health', (req, res) => {
     res.status(200).send('Healthy');
 });
 

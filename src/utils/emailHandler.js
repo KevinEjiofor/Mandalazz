@@ -3,7 +3,8 @@ const { EMAIL_USER, EMAIL_PASS } = process.env;
 
 const createTransporter = () => {
     try {
-        return nodemailer.createTransporter({
+        return nodemailer.createTransport({
+
             service: 'gmail',
             auth: {
                 user: EMAIL_USER,
