@@ -219,6 +219,86 @@ class ProductService {
             throw new Error('Failed to retrieve filter options');
         }
     }
+
+    async removeBulkDiscount(category = null) {
+        const filter = category ? { category } : {};
+        const products = await productRepo.findAll(filter);
+
+        const updatePromises = products.map(product => {
+            return productRepo.updateProduct(product, {
+                bulkDiscountPercent: 0,
+                bulkDiscountStartDate: null,
+                bulkDiscountEndDate: null,
+                ...this.priceService.formatPriceData(
+                    null,
+                    null,
+                    this.priceService.calculateFinalPrice(
+                        parseFloat(product.price.toString()),
+                        product.discountPercent || 0
+                    )
+                ),
+                updatedAt: new Date()
+            });
+        });
+
+        await Promise.all(updatePromises);
+        return {
+            message: `Bulk discount removed successfully${category ? ` for ${category} category` : ''}`,
+            affectedProducts: products.length
+        };
+    }
+
+    async setProductDiscount(productId, discountPercent, startDate = null, endDate = null) {
+        const product = await productRepo.findById(productId);
+        if (!product) throw new Error('Product not found');
+
+        this.validationService.validateDiscount(discountPercent);
+
+        // Validate dates if provided
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            if (start > end) {
+                throw new Error('Start date must be before end date');
+            }
+        }
+
+        const price = parseFloat(product.price.toString());
+        const finalPrice = this.priceService.calculateFinalPrice(price, discountPercent);
+
+        const updateData = {
+            discountPercent,
+            discountStartDate: startDate ? new Date(startDate) : null,
+            discountEndDate: endDate ? new Date(endDate) : null,
+            finalPrice: finalPrice, // Let the repository handle Decimal128 conversion
+            updatedAt: new Date()
+        };
+
+        const updatedProduct = await productRepo.updateProduct(product, updateData);
+
+        return {
+            message: `Discount ${discountPercent}% applied successfully to product`,
+            product: updatedProduct
+        };
+    }
+
+    async removeProductDiscount(productId) {
+        const product = await productRepo.findById(productId);
+        if (!product) throw new Error('Product not found');
+
+        const price = parseFloat(product.price.toString());
+        const finalPrice = this.priceService.calculateFinalPrice(price, 0);
+
+        const updatedProduct = await productRepo.updateProduct(product, {
+            ...this.priceService.formatPriceData(null, 0, finalPrice),
+            updatedAt: new Date()
+        });
+
+        return {
+            message: 'Product discount removed successfully',
+            product: updatedProduct
+        };
+    }
 }
 
 module.exports = new ProductService();

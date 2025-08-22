@@ -226,6 +226,54 @@ class ProductController {
             sendErrorResponse(res, err.message);
         }
     }
+
+    async removeBulkDiscount(req, res) {
+        try {
+            const { category } = req.body;
+            const result = await productService.removeBulkDiscount(category);
+            sendSuccessResponse(res, result.message, {
+                affectedProducts: result.affectedProducts
+            });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    async setProductDiscount(req, res) {
+        try {
+            const { productId } = req.params;
+            const { discountPercent, startDate, endDate } = req.body;
+
+            if (!productId || discountPercent === undefined) {
+                return sendErrorResponse(res, 'Product ID and discount percentage are required', 400);
+            }
+
+            const result = await productService.setProductDiscount(
+                productId,
+                discountPercent,
+                startDate || null,
+                endDate || null
+            );
+
+            sendSuccessResponse(res, result.message, result.product);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
+
+    async removeProductDiscount(req, res) {
+        try {
+            const { productId } = req.params;
+            if (!productId) {
+                return sendErrorResponse(res, 'Product ID is required', 400);
+            }
+
+            const result = await productService.removeProductDiscount(productId);
+            sendSuccessResponse(res, result.message, result.product);
+        } catch (error) {
+            sendErrorResponse(res, error.message);
+        }
+    }
 }
 
 module.exports = new ProductController();

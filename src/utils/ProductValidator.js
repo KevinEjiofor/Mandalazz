@@ -264,7 +264,16 @@ class ProductValidator {
 
         return labelMap[option] || option;
     }
-
+    validateDiscount(discountPercent) {
+        const discount = Number(discountPercent);
+        if (isNaN(discount)) {
+            throw new Error('Discount percentage must be a valid number');
+        }
+        if (discount < 0 || discount > 100) {
+            throw new Error('Discount percentage must be between 0 and 100');
+        }
+        return discount;
+    }
     // Get validation options for frontend
     getValidationOptions() {
         return {

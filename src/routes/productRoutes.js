@@ -17,7 +17,9 @@ router.get('/filter-options', productController.getFilterOptions);
 router.get('/sort-options', productController.getSortOptions);
 router.get('/validation-options', productController.getValidationOptions);
 router.get('/:id', productController.getProductById);
-// Add to productRoutes.js
 router.post('/bulk-discount', auth, isAdmin, productController.applyBulkDiscount);
+router.post('/bulk-discount/remove', auth, isAdmin, productController.removeBulkDiscount);
+router.post('/discount/:productId', auth, isAdmin,productController.setProductDiscount);
+router.delete('/discount/:productId', auth, isAdmin, productController.removeProductDiscount);
 
 module.exports = router;

@@ -36,6 +36,14 @@ const productSchema = new mongoose.Schema({
                 message: 'Discount must be between 0 and 100 percent'
             }
         },
+    discountStartDate: {
+        type: Date,
+        default: null
+    },
+    discountEndDate: {
+        type: Date,
+        default: null
+    },
     finalPrice: {
         type: mongoose.Schema.Types.Decimal128,
         required: true
