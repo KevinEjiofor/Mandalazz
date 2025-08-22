@@ -235,6 +235,40 @@ class CheckoutService {
         return checkout;
     }
 
+// In CheckoutService.js - Update the getCheckouts method
+
+    static async getCheckouts(options = {}) {
+        const checkouts = await CheckoutRepo.findSecure({}, options);
+
+        return checkouts.map(checkout => ({
+            orderNumber: checkout.orderNumber,
+            totalAmount: checkout.totalAmount,
+            paymentStatus: checkout.paymentStatus,
+            deliveryStatus: checkout.deliveryStatus,
+            createdAt: checkout.createdAt,
+
+            user: {
+                name: `${checkout.userDetails?.firstName || ""} ${checkout.userDetails?.lastName || ""}`.trim(),
+                email: checkout.userDetails?.email || "",
+                phone: checkout.userDetails?.phoneNumber || "",
+                address: checkout.userDetails?.address || ""
+            },
+
+            products: checkout.products.map(productItem => ({
+                productId: productItem._id || productItem.productId, // ✅ Fixed - now uses _id from sanitizeResponse
+                name: productItem.name,
+                description: productItem.description,
+                price: productItem.price,
+                category: productItem.category,
+                brand: productItem.brand,
+                color: productItem.color,
+                size: productItem.size,
+                quantity: productItem.quantity,
+                images: productItem.images || [] // ✅ Fixed - images should already be populated by sanitizeResponse
+            }))
+        }));
+    }
+
     static getCheckoutById(id) {
         // Use secure method
         return CheckoutRepo.findByIdSecure(id);
@@ -260,12 +294,13 @@ class CheckoutService {
                     };
                 }
 
-                // Find the matching variation for the selected color
+
                 const matchingVariation = product.variations?.find(variation =>
                     variation.color.toLowerCase() === productItem.color.toLowerCase()
                 );
 
                 return {
+                    product: product._id,
                     name: product.name,
                     description: product.description,
                     price: product.price,
@@ -316,10 +351,7 @@ class CheckoutService {
     }
 
 
-    static getUserCheckouts(userId) {
-        // Use secure method
-        return CheckoutRepo.findByUserSecure(userId);
-    }
+
 
     static searchCheckouts(params) {
         const query = {};

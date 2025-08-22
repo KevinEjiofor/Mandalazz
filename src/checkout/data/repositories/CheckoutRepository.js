@@ -6,7 +6,7 @@ class CheckoutRepository {
     }
 
     static get SAFE_PRODUCT_FIELDS() {
-        return 'name description price images category brand inStock';
+        return '_id name description price images category brand inStock';
     }
 
     static get USER_EXCLUDED_FIELDS() {
@@ -104,7 +104,6 @@ class CheckoutRepository {
         const docs = await mongoQuery;
         return this.sanitizeResponseArray(docs);
     }
-
     static sanitizeResponse(doc) {
         if (!doc) return doc;
 
@@ -126,6 +125,8 @@ class CheckoutRepository {
                 );
 
                 return {
+                    _id: productItem.product._id,
+                    productId: productItem.product._id, // ✅ Add this for consistency
                     name: productItem.product.name,
                     description: productItem.product.description,
                     price: productItem.product.price,
@@ -141,7 +142,6 @@ class CheckoutRepository {
 
         return obj;
     }
-
     static async findDeliveredOrdersSecure(userId) {
         const query = {
             user: userId,
@@ -151,25 +151,24 @@ class CheckoutRepository {
         let mongoQuery = Checkout.find(query)
             .populate({
                 path: 'products.product',
-                select: 'name description price category brand variations'
+                select: 'name description price category brand variations' // we’ll still populate variations
             })
             .sort({ updatedAt: -1 });
 
         const docs = await mongoQuery;
 
-        // Apply custom sanitization for delivered orders that preserves variations
         return docs.map(doc => {
             if (!doc) return doc;
 
             const obj = doc.toObject ? doc.toObject() : doc;
 
-            // Keep the original products structure with variations for delivered orders
             if (obj.products && Array.isArray(obj.products)) {
                 obj.products = obj.products.map(productItem => {
                     if (!productItem.product) return productItem;
 
                     return {
                         product: {
+                            _id: productItem.product._id,
                             name: productItem.product.name,
                             description: productItem.product.description,
                             price: productItem.product.price,
