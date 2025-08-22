@@ -1,84 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const {
-    findAdminByEmail,
-    findAdminByName,
-    createAdmin,
-    updatePassword
-} = require('../data/repositories/adminRepository');
+const { findAdminByEmail, createAdmin, updatePassword } = require('../data/repositories/adminRepository');
 const { JWT_SECRET } = require('../../config/config');
-const { userNotifications } = require('../../utils/emailHandler');
+const { sendEmail } = require('../../utils/emailHandler');
 const { checkIfAdminExists } = require('../../utils/validation');
 const Admin = require('../data/models/adminModel');
 
 class AdminAuthService {
-    formatDateTime(date) {
-        const options = {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'UTC'
-        };
-        return date.toLocaleDateString('en-US', options);
-    }
-
-    getClientInfo(req) {
-        let ip = 'Unknown';
-
-        if (req) {
-            ip = req.headers['x-forwarded-for'] ||
-                req.headers['x-real-ip'] ||
-                req.headers['x-client-ip'] ||
-                req.headers['cf-connecting-ip'] ||
-                req.connection?.remoteAddress ||
-                req.socket?.remoteAddress ||
-                req.ip ||
-                req.raw?.connection?.remoteAddress ||
-                'Unknown';
-
-            if (ip && ip.includes(',')) {
-                ip = ip.split(',')[0].trim();
-            }
-
-            if (ip && ip.startsWith('::ffff:')) {
-                ip = ip.substring(7);
-            }
-        }
-
-        const userAgent = req?.get ? req.get('User-Agent') : req?.headers?.['user-agent'] || 'Unknown';
-
-        return { ip, userAgent };
-    }
-
-    async getLocationFromIP(ip) {
-        if (!ip || ip === 'Unknown' || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) {
-            return 'Local/Private Network';
-        }
-
-        try {
-            const response = await fetch(`http://ipapi.co/${ip}/json/`, {
-                timeout: 3000
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.city && data.country_name) {
-                    return `${data.city}, ${data.country_name}`;
-                } else if (data.country_name) {
-                    return data.country_name;
-                }
-            }
-        } catch (error) {
-            // Silent fail for location detection
-        }
-
-        return 'Unknown Location';
-    }
-
-    async authenticateAdmin(email, password, req = null) {
+    async authenticateAdmin(email, password) {
         const admin = await findAdminByEmail(email);
         if (!admin) {
             throw new Error('Invalid email or password');
@@ -95,59 +24,51 @@ class AdminAuthService {
             { expiresIn: '3h' }
         );
 
-        const clientInfo = this.getClientInfo(req);
-        const location = await this.getLocationFromIP(clientInfo.ip);
-        const loginTime = this.formatDateTime(new Date());
+        // Attempt to send login notification without blocking
+        setImmediate(async () => {
+            const subject = 'New Admin Login Alert';
+            const text = `Hi ${admin.name},
 
-        const subject = 'Admin Login Alert';
-        const text = `Hi ${admin.name},
+New login detected on your admin account
+Time: ${new Date().toLocaleString()}
+Email: ${email}
 
-New admin login detected:
+If this wasn't you, please change your password immediately.
 
-Time: ${loginTime}
-IP: ${clientInfo.ip}
-Location: ${location}
-Device: ${clientInfo.userAgent}
+Best regards,
+Everything Mandalazz Admin Team`;
 
-If this wasn't you, change your password immediately and contact security@yourcompany.com.
-
-Stay secure,
-Security Team`;
-
-        await userNotifications(email, subject, text);
+            try {
+                await sendEmail(admin.email, subject, text);
+            } catch (error) {
+                // Log error but don't affect login flow
+                console.error('Admin login notification failed:', {
+                    adminId: admin._id,
+                    error: error.message
+                });
+            }
+        });
 
         return token;
     }
 
+
+
     async createAdminAccount(name, email, password) {
         await checkIfAdminExists(name, email);
-
         const hashedPassword = await bcrypt.hash(password, 10);
         const newAdmin = await createAdmin(name, email, hashedPassword);
-
-        const creationTime = this.formatDateTime(new Date());
 
         const subject = 'Admin Account Created';
         const text = `Welcome ${name}!
 
-Your admin account is ready:
-
+Your admin account has been created successfully.
 Email: ${email}
-Created: ${creationTime}
-Login: https://yourcompany.com/admin
 
-Security tips:
-• Use a strong password
-• Enable 2FA when available
-• Never share your credentials
-
-Need help? Contact support@yourcompany.com
-
-Welcome aboard!
+Best regards,
 Admin Team`;
 
-        await userNotifications(email, subject, text);
-
+        await sendEmail(email, subject, text);
         return newAdmin;
     }
 
@@ -160,24 +81,18 @@ Admin Team`;
         const rawResetToken = admin.createPasswordResetToken();
         await admin.save();
 
-        const requestTime = this.formatDateTime(new Date());
-
         const subject = 'Password Reset Request';
         const text = `Hi ${admin.name},
 
-Password reset requested for ${email}
+Use this token to reset your password:
+${rawResetToken}
 
-Reset Token: ${rawResetToken}
-Requested: ${requestTime}
-Expires: 10 minutes
+This token will expire in 10 minutes.
 
-Use this token to reset your password. Keep it secure!
+Best regards,
+Admin Team`;
 
-Didn't request this? Ignore this email.
-
-Security Team`;
-
-        await userNotifications(email, subject, text);
+        await sendEmail(email, subject, text);
         return rawResetToken;
     }
 
@@ -185,10 +100,10 @@ Security Team`;
         if (!token) throw new Error('Reset token required');
 
         const cleaned = token.trim();
-        const hashed = crypto.createHash('sha256').update(cleaned).digest('hex');
+        const hashedToken = crypto.createHash('sha256').update(cleaned).digest('hex');
 
         const admin = await Admin.findOne({
-            resetPasswordToken: hashed,
+            resetPasswordToken: hashedToken,
             resetPasswordExpire: { $gt: Date.now() }
         });
 
@@ -206,10 +121,10 @@ Security Team`;
         }
 
         const cleaned = token.trim();
-        const hashed = crypto.createHash('sha256').update(cleaned).digest('hex');
+        const hashedToken = crypto.createHash('sha256').update(cleaned).digest('hex');
 
         const admin = await Admin.findOne({
-            resetPasswordToken: hashed,
+            resetPasswordToken: hashedToken,
             resetPasswordExpire: { $gt: Date.now() }
         });
 
@@ -222,23 +137,7 @@ Security Team`;
         admin.resetPasswordExpire = undefined;
         await admin.save();
 
-        const resetTime = this.formatDateTime(new Date());
-
-        const subject = 'Password Reset Complete';
-        const confirmationText = `Hi ${admin.name},
-
-Your password was successfully reset.
-
-Account: ${admin.email}
-Reset: ${resetTime}
-
-Login with your new password at: https://yourcompany.com/admin
-
-If you didn't do this, contact security@yourcompany.com immediately.
-
-Security Team`;
-
-        await userNotifications(admin.email, subject, confirmationText);
+        await sendEmail(admin.email, 'Password Reset Complete', 'Your password has been reset successfully.');
 
         const safeAdmin = admin.toObject();
         delete safeAdmin.password;
@@ -256,34 +155,13 @@ Security Team`;
             throw new Error('Current password is incorrect');
         }
 
-        const isSame = await bcrypt.compare(newPassword, admin.password);
-        if (isSame) {
-            throw new Error('New password must be different from current password');
-        }
-
         if (!newPassword || newPassword.length < 6) {
             throw new Error('New password must be at least 6 characters long');
         }
 
         const hashedNew = await bcrypt.hash(newPassword, 10);
         await updatePassword(adminId, hashedNew);
-
-        const changeTime = this.formatDateTime(new Date());
-
-        const subject = 'Password Changed';
-        const text = `Hi ${admin.name},
-
-Your admin password was changed successfully.
-
-Account: ${admin.email}
-Changed: ${changeTime}
-
-If you didn't make this change, contact security@yourcompany.com immediately.
-
-Security Team`;
-
-        await userNotifications(admin.email, subject, text);
-
+        await sendEmail(admin.email, 'Password Changed', 'Your password has been changed successfully.');
         return true;
     }
 

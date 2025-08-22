@@ -9,6 +9,7 @@ const router = express.Router();
 // User routes
 router.post('/create', authMiddleware, isUser, CheckoutController.createCheckout);
 router.get('/my-orders', authMiddleware, isUser, CheckoutController.getUserCheckouts);
+router.get('/delivered-orders', authMiddleware, isUser, CheckoutController.getDeliveredOrders);
 
 // Admin routes
 router.get('/search', authMiddleware, isAdmin, CheckoutController.searchCheckouts);

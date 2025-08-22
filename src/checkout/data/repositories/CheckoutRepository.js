@@ -13,28 +13,6 @@ class CheckoutRepository {
         return '-password -_id -role -emailVerified -createdAt -updatedAt -resetPasswordPin -resetPasswordExpire -emailVerificationToken -emailVerificationExpire -activityLogs -__v';
     }
 
-    // Helper method to remove _id from populated fields
-    static sanitizeResponse(doc) {
-        if (!doc) return doc;
-
-        const obj = doc.toObject ? doc.toObject() : doc;
-
-        // Remove user._id if user exists
-        if (obj.user && obj.user._id) {
-            delete obj.user._id;
-        }
-
-        // Remove product._id from products array
-        if (obj.products && Array.isArray(obj.products)) {
-            obj.products.forEach(productItem => {
-                if (productItem.product && productItem.product._id) {
-                    delete productItem.product._id;
-                }
-            });
-        }
-
-        return obj;
-    }
 
     // Helper method to sanitize array of documents
     static sanitizeResponseArray(docs) {
@@ -106,27 +84,109 @@ class CheckoutRepository {
         return this.sanitizeResponseArray(docs);
     }
 
-    static async findOneSecure(query) {
-        const doc = await Checkout.findOne(query)
+    static async findByUserSecure(userId, options = {}) {
+        const query = { user: userId };
+        let mongoQuery = Checkout.find(query)
             .populate({
                 path: 'user',
                 select: 'firstName lastName email'
             })
             .populate({
                 path: 'products.product',
-                select: this.SAFE_PRODUCT_FIELDS
-            });
-        return this.sanitizeResponse(doc);
+                select: 'name description price category brand variations'
+            })
+            .sort({ createdAt: -1 });
+
+        if (options.limit) {
+            mongoQuery = mongoQuery.limit(options.limit);
+        }
+
+        const docs = await mongoQuery;
+        return this.sanitizeResponseArray(docs);
     }
 
-    static findByUserSecure(userId, options = {}) {
-        const query = { user: userId };
-        return this.findSecure(query, {
-            sort: { createdAt: -1 },
-            ...options
+    static sanitizeResponse(doc) {
+        if (!doc) return doc;
+
+        const obj = doc.toObject ? doc.toObject() : doc;
+
+        // Remove user._id if user exists
+        if (obj.user && obj.user._id) {
+            delete obj.user._id;
+        }
+
+        // Format products array with required details
+        if (obj.products && Array.isArray(obj.products)) {
+            obj.products = obj.products.map(productItem => {
+                if (!productItem.product) return productItem;
+
+                // Find the variation matching the selected color
+                const matchingVariation = productItem.product.variations?.find(v =>
+                    v.color.toLowerCase() === productItem.color.toLowerCase()
+                );
+
+                return {
+                    name: productItem.product.name,
+                    description: productItem.product.description,
+                    price: productItem.product.price,
+                    category: productItem.product.category,
+                    brand: productItem.product.brand,
+                    color: productItem.color,
+                    size: productItem.size,
+                    quantity: productItem.quantity,
+                    images: matchingVariation?.images || []
+                };
+            });
+        }
+
+        return obj;
+    }
+
+    static async findDeliveredOrdersSecure(userId) {
+        const query = {
+            user: userId,
+            deliveryStatus: 'delivered'
+        };
+
+        let mongoQuery = Checkout.find(query)
+            .populate({
+                path: 'products.product',
+                select: 'name description price category brand variations'
+            })
+            .sort({ updatedAt: -1 });
+
+        const docs = await mongoQuery;
+
+        // Apply custom sanitization for delivered orders that preserves variations
+        return docs.map(doc => {
+            if (!doc) return doc;
+
+            const obj = doc.toObject ? doc.toObject() : doc;
+
+            // Keep the original products structure with variations for delivered orders
+            if (obj.products && Array.isArray(obj.products)) {
+                obj.products = obj.products.map(productItem => {
+                    if (!productItem.product) return productItem;
+
+                    return {
+                        product: {
+                            name: productItem.product.name,
+                            description: productItem.product.description,
+                            price: productItem.product.price,
+                            category: productItem.product.category,
+                            brand: productItem.product.brand,
+                            variations: productItem.product.variations || []
+                        },
+                        color: productItem.color,
+                        size: productItem.size,
+                        quantity: productItem.quantity
+                    };
+                });
+            }
+
+            return obj;
         });
     }
-
     static findWithPaginationSecure(query = {}, page = 1, limit = 10, options = {}) {
         const skip = (page - 1) * limit;
 
@@ -458,7 +518,7 @@ class CheckoutRepository {
     }
 
     static findById(id) {
-        console.warn('⚠️ WARNING: findById exposes user _id. Use findByIdSecure instead.');
+
         return Checkout.findById(id)
             .populate('user', this.SAFE_USER_FIELDS)
             .populate('products.product', this.SAFE_PRODUCT_FIELDS);

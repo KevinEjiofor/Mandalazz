@@ -1,17 +1,41 @@
 const productService = require('../services/ProductService');
-const productValidator = require('../../utils/ProductValidator');
+const ProductValidator = require('../../utils/ProductValidator');
 const { sendSuccessResponse, sendErrorResponse } = require('../../utils/respondHandler');
+
+const productValidator = new ProductValidator();
 
 class ProductController {
     async addProduct(req, res) {
         try {
-            const { name, price, description, category, brand, brandType, variations } = req.body;
+            const {
+                name,
+                price,
+                description,
+                category,
+                brand,
+                brandType,
+                variations,
+                discountPercent  // Explicitly destructure discountPercent
+            } = req.body;
 
-
-            productValidator.validateProductData({ name, price, category, brandType });
+            productValidator.validateProductData({
+                name,
+                price,
+                category,
+                brandType,
+                discountPercent  // Add to validation if needed
+            });
 
             const result = await productService.addProduct(
-                { name, price, description, brand, category, brandType },
+                {
+                    name,
+                    price,
+                    description,
+                    brand,
+                    category,
+                    brandType,
+                    discountPercent: Number(discountPercent) || 0  // Convert to number
+                },
                 req.admin,
                 variations,
                 req.files
@@ -38,22 +62,39 @@ class ProductController {
                 category,
                 brand,
                 brandType,
-                variations
+                variations,
+                discountPercent  // Add this line to handle discount updates
             } = req.body;
 
-            // Step 1: Validate the input data (only fields provided)
-            const dataToValidate = { name, price, category, brandType };
+            // Validate the input data (only fields provided)
+            const dataToValidate = {
+                name,
+                price,
+                category,
+                brandType,
+                discountPercent  // Add to validation
+            };
             const filteredData = Object.fromEntries(
-                Object.entries(dataToValidate).filter(([_, value]) => value !== undefined)
+                Object.entries(dataToValidate)
+                    .filter(([_, value]) => value !== undefined)
             );
 
             if (Object.keys(filteredData).length > 0) {
                 productValidator.validateProductData(filteredData, true);
             }
 
-            const updateData = { name, price, description, category, brand, brandType };
+            const updateData = {
+                name,
+                price,
+                description,
+                category,
+                brand,
+                brandType,
+                discountPercent  // Include in update data
+            };
             const cleanUpdateData = Object.fromEntries(
-                Object.entries(updateData).filter(([_, value]) => value !== undefined)
+                Object.entries(updateData)
+                    .filter(([_, value]) => value !== undefined)
             );
 
             const result = await productService.updateProduct(
@@ -68,8 +109,6 @@ class ProductController {
             sendErrorResponse(res, error.message || "Failed to update product");
         }
     }
-
-
     async deleteProduct(req, res) {
         try {
             const result = await productService.deleteProduct(req.params.id);
@@ -150,6 +189,32 @@ class ProductController {
             sendSuccessResponse(res, 'Sort options retrieved successfully', { sortOptions });
         } catch (err) {
             sendErrorResponse(res, err.message);
+        }
+    }
+
+    async applyBulkDiscount(req, res) {
+        try {
+            const { category, bulkDiscountPercent, startDate, endDate } = req.body;
+
+            if (!bulkDiscountPercent) {
+                return sendErrorResponse(res, 'Bulk discount percentage is required', 400);
+            }
+
+            const result = await productService.applyBulkDiscount(
+                category,
+                bulkDiscountPercent,
+                startDate || null,
+                endDate || null
+            );
+
+            sendSuccessResponse(res, result.message, {
+                affectedProducts: result.affectedProducts,
+                bulkDiscountPercent,
+                startDate,
+                endDate
+            });
+        } catch (error) {
+            sendErrorResponse(res, error.message);
         }
     }
 

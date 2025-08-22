@@ -165,6 +165,19 @@ class CheckoutController {
             sendErrorResponse(res, { message: error.message || 'Search failed.' });
         }
     }
+    static async getDeliveredOrders(req, res) {
+        try {
+            const userId = req.user.id;
+            const deliveredOrders = await CheckoutService.getDeliveredOrders(userId);
+
+            sendSuccessResponse(res, {
+                message: 'Delivered orders retrieved successfully.',
+                deliveredOrders
+            });
+        } catch (error) {
+            sendErrorResponse(res, { message: error.message || 'Failed to retrieve delivered orders.' });
+        }
+    }
 }
 
 module.exports = CheckoutController;

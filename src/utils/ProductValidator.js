@@ -1,5 +1,3 @@
-const productService = require('../product/services/ProductService');
-
 class ProductValidator {
     constructor() {
         this.validCategories = [
@@ -30,6 +28,7 @@ class ProductValidator {
         ];
     }
 
+    // Basic validations
     validateCategory(category) {
         if (category && !this.validCategories.includes(category)) {
             throw new Error(`Invalid category. Valid options are: ${this.validCategories.join(', ')}`);
@@ -109,7 +108,18 @@ class ProductValidator {
         return query.trim();
     }
 
-    async validateAndProcessVariations(variations, files) {
+    validateBulkDiscount(bulkDiscountPercent, startDate, endDate) {
+        if (!bulkDiscountPercent || bulkDiscountPercent < 0 || bulkDiscountPercent > 100) {
+            throw new Error('Invalid bulk discount percentage');
+        }
+
+        if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+            throw new Error('Start date must be before end date');
+        }
+    }
+
+    // Complex validations
+    async validateAndProcessVariations(variations, files, imageService) {
         if (!variations) {
             throw new Error('Product variations are required');
         }
@@ -143,7 +153,7 @@ class ProductValidator {
                 });
             });
 
-            return await productService.processVariations(parsedVariations, files);
+            return await imageService.processVariations(parsedVariations, files);
         } catch (error) {
             if (error instanceof SyntaxError) {
                 throw new Error('Invalid variations format. Must be valid JSON');
@@ -189,16 +199,52 @@ class ProductValidator {
         };
     }
 
-    // Get validation options for frontend
-    getValidationOptions() {
+    // Utility methods that ProductService expects
+    buildPaginatedResponse(products, page, limit, totalProducts) {
+        const totalPages = Math.ceil(totalProducts / limit);
         return {
-            categories: this.validCategories,
-            brandTypes: this.validBrandTypes,
-            sortOptions: this.validSortOptions.map(option => ({
-                value: option,
-                label: this.formatSortOptionLabel(option)
-            }))
+            products,
+            pagination: {
+                currentPage: parseInt(page),
+                totalPages,
+                totalProducts,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+                limit: parseInt(limit)
+            }
         };
+    }
+
+    buildSortOptions(sortBy) {
+        if (!sortBy) return { createdAt: -1 };
+
+        const normalizedSortBy = sortBy.trim().toLowerCase();
+        const sortOptionsMap = {
+            newest: { createdAt: -1 },
+            oldest: { createdAt: 1 },
+            price_high_to_low: { price: -1 },
+            price_low_to_high: { price: 1 },
+            rating_high_to_low: { rating: -1, reviewCount: -1 },
+            rating_low_to_high: { rating: 1 },
+            popularity: { reviewCount: -1, rating: -1 },
+            name_a_to_z: { name: 1 },
+            name_z_to_a: { name: -1 },
+            brand_a_to_z: { brand: 1 },
+            brand_z_to_a: { brand: -1 },
+        };
+
+        return sortOptionsMap[normalizedSortBy] || { createdAt: -1 };
+    }
+
+    buildSearchSortOptions(sortBy) {
+        return sortBy ? this.buildSortOptions(sortBy) : { score: { $meta: 'textScore' } };
+    }
+
+    getSortOptionsList() {
+        return this.validSortOptions.map(option => ({
+            value: option,
+            label: this.formatSortOptionLabel(option)
+        }));
     }
 
     formatSortOptionLabel(option) {
@@ -218,6 +264,15 @@ class ProductValidator {
 
         return labelMap[option] || option;
     }
+
+    // Get validation options for frontend
+    getValidationOptions() {
+        return {
+            categories: this.validCategories,
+            brandTypes: this.validBrandTypes,
+            sortOptions: this.getSortOptionsList()
+        };
+    }
 }
 
-module.exports = new ProductValidator();
+module.exports = ProductValidator;

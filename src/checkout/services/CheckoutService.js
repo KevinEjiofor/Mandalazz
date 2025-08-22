@@ -239,11 +239,82 @@ class CheckoutService {
         // Use secure method
         return CheckoutRepo.findByIdSecure(id);
     }
+    static async getDeliveredOrders(userId) {
+        const checkouts = await CheckoutRepo.findDeliveredOrdersSecure(userId);
 
-    static getCheckouts() {
-        // Use secure method
-        return CheckoutRepo.findSecure();
+        return checkouts.map(checkout => ({
+            orderNumber: checkout.orderNumber,
+            deliveryDate: checkout.updatedAt,
+            totalAmount: checkout.totalAmount,
+            userDetails: checkout.userDetails,
+            products: checkout.products.map(productItem => {
+                // The product details should already be populated from the repository
+                const product = productItem.product;
+
+                if (!product) {
+                    return {
+                        color: productItem.color,
+                        size: productItem.size,
+                        quantity: productItem.quantity,
+                        images: []
+                    };
+                }
+
+                // Find the matching variation for the selected color
+                const matchingVariation = product.variations?.find(variation =>
+                    variation.color.toLowerCase() === productItem.color.toLowerCase()
+                );
+
+                return {
+                    name: product.name,
+                    description: product.description,
+                    price: product.price,
+                    category: product.category,
+                    brand: product.brand,
+                    color: productItem.color,
+                    size: productItem.size,
+                    quantity: productItem.quantity,
+                    images: matchingVariation?.images || []
+                };
+            })
+        }));
     }
+    static async getUserCheckouts(userId) {
+        const checkouts = await CheckoutRepo.findByUserSecure(userId, {
+            populate: [
+                {
+                    path: 'user',
+                    select: 'firstName lastName email'
+                },
+                {
+                    path: 'products.product',
+                    select: 'name description price images category brand color'
+                }
+            ]
+        });
+
+        return checkouts.map(checkout => {
+            // Ensure products have all required details
+            const formattedProducts = checkout.products.map(product => ({
+                ...product,
+                product: product.product ? {
+                    name: product.product.name,
+                    description: product.product.description,
+                    price: product.product.price,
+                    images: product.product.images,
+                    category: product.product.category,
+                    brand: product.product.brand,
+                    color: product.color
+                } : null
+            }));
+
+            return {
+                ...checkout,
+                products: formattedProducts
+            };
+        });
+    }
+
 
     static getUserCheckouts(userId) {
         // Use secure method
