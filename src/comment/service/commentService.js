@@ -57,7 +57,7 @@ class CommentService {
         }
 
         // Create notification with clickable action
-        await NotificationService.createNotificationWithAction(
+        await NotificationService.addNotification(
             'comment_added',
             `${user.firstName} ${user.lastName} commented on "${product.name}"`,
             {
@@ -210,7 +210,7 @@ class CommentService {
             });
         }
 
-        await NotificationService.createNotificationWithAction(
+        await NotificationService.addNotification(
             'comment_deleted',
             `Comment deleted from "${product?.name || 'Unknown'}"`,
             {
