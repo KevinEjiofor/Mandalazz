@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const CheckoutStatus = require('../../../enums/checkoutStatus');
 
-const checkoutSchema = new mongoose.Schema({
+const checkoutSchema = new mongoose.Schema(
+    {
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
@@ -9,7 +10,7 @@ const checkoutSchema = new mongoose.Schema({
         },
         orderNumber: {
             type: String,
-            unique: true,
+            unique: true, // ✅ keep uniqueness here
             required: true,
         },
         products: [
@@ -82,8 +83,8 @@ const checkoutSchema = new mongoose.Schema({
         },
         paymentReference: {
             type: String,
-            unique: true,
-            sparse: true,
+            unique: true, // ✅ keep unique here
+            sparse: true, // allows multiple null values
         },
         estimatedDeliveryDate: { type: Date, required: true },
         actualDeliveryDate: { type: Date },
@@ -101,10 +102,11 @@ const checkoutSchema = new mongoose.Schema({
                 return ret;
             },
         },
-    });
+    }
+);
 
 // Generate order number before saving
-checkoutSchema.pre('save', function(next) {
+checkoutSchema.pre('save', function (next) {
     if (!this.orderNumber) {
         const timestamp = Date.now().toString();
         const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -113,14 +115,16 @@ checkoutSchema.pre('save', function(next) {
     next();
 });
 
+// ✅ Useful indexes (kept)
 checkoutSchema.index({ user: 1, createdAt: -1 });
 checkoutSchema.index({ 'userDetails.email': 1 });
 checkoutSchema.index({ 'userDetails.country.name': 1 });
 checkoutSchema.index({ 'userDetails.city': 1 });
 checkoutSchema.index({ paymentStatus: 1 });
 checkoutSchema.index({ deliveryStatus: 1 });
-checkoutSchema.index({ orderNumber: 1 });
+// ❌ Removed duplicate orderNumber index (already unique at field level)
 
+// Virtual fields
 checkoutSchema.virtual('customerName').get(function () {
     return `${this.userDetails.firstName} ${this.userDetails.lastName}`;
 });
@@ -137,6 +141,7 @@ checkoutSchema.virtual('deliveryAddressSummary').get(function () {
     return parts.join(', ');
 });
 
+// Instance methods
 checkoutSchema.methods.canBeCancelled = function () {
     return (
         new Date() <= new Date(this.cancellationDeadline) &&
