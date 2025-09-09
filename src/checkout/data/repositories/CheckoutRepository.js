@@ -6,7 +6,8 @@ class CheckoutRepository {
     }
 
     static get SAFE_PRODUCT_FIELDS() {
-        return '_id name description price images category brand inStock';
+
+        return '_id name description price images category brand inStock variations';
     }
 
     static get USER_EXCLUDED_FIELDS() {
@@ -245,12 +246,32 @@ class CheckoutRepository {
         return this.sanitizeResponse(doc);
     }
 
-    static updateStatusSecure(id, status) {
-        return this.updateByIdSecure(id, { status });
+    static updateStatusSecure(id, updates) {
+        return this.updateByIdSecure(id, updates);
     }
 
-    static updateDeliveryStatusSecure(id, deliveryStatus) {
-        return this.updateByIdSecure(id, { deliveryStatus });
+    static async updateDeliveryStatusSecure(id, deliveryStatus, note = null) {
+        // Push new status to deliveryStatusTimeline atomically
+        const update = {
+            deliveryStatus,
+            $push: {
+                deliveryStatusTimeline: {
+                    status: deliveryStatus,
+                    changedAt: new Date(),
+                    ...(note ? { note } : {})
+                }
+            }
+        };
+        const doc = await Checkout.findByIdAndUpdate(id, update, { new: true })
+            .populate({
+                path: 'user',
+                select: 'firstName lastName email'
+            })
+            .populate({
+                path: 'products.product',
+                select: this.SAFE_PRODUCT_FIELDS
+            });
+        return this.sanitizeResponse(doc);
     }
 
     static updatePaymentStatusSecure(id, paymentStatus) {
@@ -535,6 +556,23 @@ class CheckoutRepository {
         return Checkout.findByIdAndUpdate(id, updates, { new: true })
             .populate('user', this.SAFE_USER_FIELDS)
             .populate('products.product', this.SAFE_PRODUCT_FIELDS);
+    }
+
+    static async updateCheckoutUserDetailsById(checkoutId, newUserDetails) {
+        const doc = await Checkout.findByIdAndUpdate(
+            checkoutId,
+            { userDetails: newUserDetails },
+            { new: true }
+        )
+        .populate({
+            path: 'user',
+            select: this.SAFE_USER_FIELDS
+        })
+        .populate({
+            path: 'products.product',
+            select: this.SAFE_PRODUCT_FIELDS
+        });
+        return this.sanitizeResponse(doc);
     }
 }
 
