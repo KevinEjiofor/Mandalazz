@@ -78,6 +78,7 @@ class CheckoutStatusManager {
         const checkouts = await CheckoutRepo.findSecure({}, options);
 
         return checkouts.map(checkout => ({
+            checkoutId: checkout._id,
             orderNumber: checkout.orderNumber,
             totalAmount: checkout.totalAmount,
             paymentStatus: checkout.paymentStatus,
@@ -92,6 +93,7 @@ class CheckoutStatusManager {
                 address: checkout.userDetails?.address || ""
             },
             products: checkout.products.map(productItem => ({
+
                 productId: productItem._id || productItem.productId,
                 name: productItem.name,
                 description: productItem.description,
