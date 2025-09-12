@@ -184,6 +184,7 @@ Admin Team`;
             firstName: user.firstName,
             lastName: user.lastName,
             role: user.role,
+            email:user.email,
             activityLogs: user.activityLogs,
             createdAt: user.createdAt,
             checkouts: user.checkouts
